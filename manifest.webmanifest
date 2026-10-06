@@ -1,9 +1,10 @@
 {
-  "name": "Pointage BL — Factures fournisseurs",
-  "short_name": "Pointage BL",
+  "name": "Photo BL — BL et factures papier",
+  "short_name": "Photo BL",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#05080f",
   "theme_color": "#05080f",
   "icons": [

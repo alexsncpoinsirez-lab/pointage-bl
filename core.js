@@ -257,16 +257,30 @@
           var champ = el('input', { type: 'text', value: l, readonly: 'readonly' });
           zoneLien.appendChild(el('div', { class: 'champ', style: 'margin-top:8px' }, [el('label', {}, ['Lien à envoyer à l’équipe (contient la clé)']), champ]));
           if (navigator.share) navigator.share({ title: 'Pointage BL', text: 'Ouvre ce lien pour régler l’appli Pointage BL :', url: l })['catch'](function () {});
-          else if (navigator.clipboard) navigator.clipboard.writeText(l).then(function () { toast('Lien copié'); });
+          else if (navigator.clipboard) navigator.clipboard.writeText(l).then(function () { toast('Lien copié'); })['catch'](function () { champ.select(); });
         } }, ['Partager la configuration']),
         res
       ]),
       zoneLien
     ]));
     vue.appendChild(el('div', { class: 'bandeau' }, [el('div', { class: 'r-titre' }, ['Nom de l’opérateur sur cet appareil']), el('div', { class: 'champ' }, [op])]));
-    vue.appendChild(el('div', { class: 'bandeau' }, [el('div', { class: 'r-titre' }, ['Outil Photo BL (terrain)']),
-      el('p', { class: 'petit' }, ['Une petite appli à part, juste pour photographier les BL et les factures papier depuis le téléphone. Même serveur, mêmes réglages : rien à refaire.']),
-      el('a', { class: 'btn-second', href: 'photo/', style: 'display:inline-grid;place-items:center;text-decoration:none' }, ['📷 Ouvrir Photo BL'])]));
+    var zonePhoto = el('div');
+    vue.appendChild(el('div', { class: 'bandeau' }, [el('div', { class: 'r-titre' }, ['Outil Photo BL (à partager)']),
+      el('p', { class: 'petit' }, ['Petite appli à part, juste pour photographier les BL et les factures papier. Le lien partagé contient une clé LIMITÉE : le collaborateur peut envoyer des photos, mais ne voit ni les factures ni les pointages.']),
+      el('div', { style: 'display:flex;gap:8px;flex-wrap:wrap' }, [
+        el('a', { class: 'btn-second', href: 'photo.html', style: 'display:inline-grid;place-items:center;text-decoration:none' }, ['📷 Ouvrir Photo BL']),
+        el('button', { class: 'btn-second', onclick: function () {
+          zonePhoto.textContent = 'Préparation du lien…';
+          Api.appeler(apiUrl(), { action: 'pointage.clePhoto', cle: cle() }, 20000).then(function (j) {
+            var l = location.origin + location.pathname.replace(/index\.html$/, '').replace(/[^/]*$/, '') + 'photo.html#config/' + b64e(JSON.stringify({ u: apiUrl(), k: j.clePhoto }));
+            zonePhoto.innerHTML = '';
+            var champ = el('input', { type: 'text', value: l, readonly: 'readonly' });
+            zonePhoto.appendChild(el('div', { class: 'champ', style: 'margin-top:8px' }, [el('label', {}, ['Lien à envoyer au collaborateur (WhatsApp, SMS, mail)']), champ]));
+            if (navigator.share) navigator.share({ title: 'Photo BL', text: 'Ouvre ce lien sur ton téléphone pour photographier les BL et factures, puis « Ajouter à l’écran d’accueil » :', url: l })['catch'](function () {});
+            else if (navigator.clipboard) navigator.clipboard.writeText(l).then(function () { toast('Lien copié'); })['catch'](function () { champ.select(); });
+          })['catch'](function (e) { zonePhoto.textContent = '✗ ' + e.message; });
+        } }, ['📤 Partager l’outil Photo BL'])
+      ]), zonePhoto]));
 
     // Pointages en attente / refusés
     var blocEnvois = el('div', { class: 'bandeau' }, [el('div', { class: 'r-titre' }, ['Envois'])]);

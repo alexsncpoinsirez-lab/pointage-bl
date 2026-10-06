@@ -3,88 +3,38 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Photo BL</title>
+  <title>Pointage BL</title>
   <meta name="theme-color" content="#05080f">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="Photo BL">
+  <meta name="apple-mobile-web-app-title" content="Pointage BL">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
-  <style>
-    :root { --fond:#05080f; --surface:rgba(255,255,255,.05); --bord:rgba(130,200,255,.18); --texte:#e6f1ff; --texte-2:#8ea3bd;
-      --vert:#22e3a1; --cyan:#38e1ff; --orange:#ffb547; --rouge:#ff4d6d; --mono:'JetBrains Mono', ui-monospace, monospace; }
-    * { box-sizing: border-box; }
-    html, body { margin: 0; min-height: 100%; }
-    body { background: radial-gradient(700px 400px at 90% -10%, rgba(56,182,255,.2), transparent 60%),
-        radial-gradient(600px 400px at -10% 60%, rgba(34,227,161,.12), transparent 60%), var(--fond);
-      background-attachment: fixed; color: var(--texte); font: 16px/1.4 'Space Grotesk', system-ui, sans-serif; -webkit-tap-highlight-color: transparent; }
-    body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
-      background-image: linear-gradient(rgba(120,200,255,.06) 1px, transparent 1px), linear-gradient(90deg, rgba(120,200,255,.06) 1px, transparent 1px);
-      background-size: 34px 34px; mask-image: radial-gradient(ellipse at 50% 0%, #000 20%, transparent 75%); -webkit-mask-image: radial-gradient(ellipse at 50% 0%, #000 20%, transparent 75%); }
-    button, select, input { font: inherit; color: inherit; }
-    .barre { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 10px; padding: calc(10px + env(safe-area-inset-top)) 16px 10px;
-      background: rgba(5,8,15,.65); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border-bottom: 1px solid var(--bord); }
-    .barre img { border-radius: 9px; box-shadow: 0 0 18px rgba(56,225,255,.45); }
-    .titre { flex: 1; font-weight: 700; font-size: 18px; }
-    .titre small { display: block; font: 500 10.5px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--texte-2); }
-    .etat { font: 500 10.5px var(--mono); letter-spacing: .08em; text-transform: uppercase; display: flex; align-items: center; gap: 6px; color: var(--texte-2); }
-    .etat::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--vert); box-shadow: 0 0 10px var(--vert); }
-    .etat.attente::before { background: var(--orange); box-shadow: 0 0 10px var(--orange); }
-    .etat.hors::before { background: #9aa39e; box-shadow: none; }
-    main { max-width: 520px; margin: 0 auto; padding: 18px 16px calc(40px + env(safe-area-inset-bottom)); }
-    .choix { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 5px; border-radius: 18px; background: var(--surface); border: 1px solid var(--bord); }
-    .choix button { min-height: 54px; border: 0; border-radius: 14px; background: transparent; font-weight: 700; font-size: 17px; color: var(--texte-2); }
-    .choix button.actif { color: var(--cyan); background: rgba(56,225,255,.14); box-shadow: inset 0 0 0 1px var(--cyan), 0 0 22px -6px var(--cyan); }
-    .champs { display: grid; gap: 10px; margin: 16px 0 6px; }
-    .champs select, .champs input { width: 100%; min-height: 52px; border-radius: 14px; border: 1px solid var(--bord); background: rgba(0,0,0,.35); padding: 0 14px; font-size: 16px; }
-    .champs input:focus, .champs select:focus { outline: none; border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(56,225,255,.15); }
-    .aide { font: 500 11px var(--mono); color: var(--texte-2); letter-spacing: .03em; margin: 4px 2px 0; }
-    .declencheur { display: grid; place-items: center; margin: 26px auto 10px; }
-    .declencheur label { position: relative; width: 190px; height: 190px; border-radius: 50%; display: grid; place-items: center; cursor: pointer; text-align: center;
-      background: radial-gradient(circle at 50% 40%, rgba(56,225,255,.25), rgba(34,227,161,.08) 60%, transparent 70%);
-      border: 2px solid var(--cyan); box-shadow: 0 0 40px -6px var(--cyan), inset 0 0 30px rgba(56,225,255,.2); font-weight: 700; transition: transform .12s; }
-    .declencheur label:active { transform: scale(.95); }
-    .declencheur label::after { content: ""; position: absolute; inset: -12px; border-radius: 50%; border: 1px solid rgba(56,225,255,.35); animation: onde 2.4s ease-out infinite; }
-    @keyframes onde { from { transform: scale(.9); opacity: 1; } to { transform: scale(1.25); opacity: 0; } }
-    .declencheur svg { display: block; margin: 0 auto 6px; filter: drop-shadow(0 0 8px var(--cyan)); }
-    .galerie { display: block; margin: 8px auto 0; background: transparent; border: 1px solid var(--bord); border-radius: 12px; padding: 10px 16px; font-weight: 600; color: var(--texte-2); cursor: pointer; text-align: center; width: max-content; }
-    input[type=file] { display: none; }
-    .liste-titre { font: 700 11px var(--mono); letter-spacing: .16em; text-transform: uppercase; color: var(--cyan); margin: 26px 2px 10px; }
-    .carte { display: flex; gap: 12px; align-items: center; padding: 10px; border-radius: 16px; border: 1px solid var(--bord); background: var(--surface); margin-bottom: 8px;
-      animation: entree .3s ease-out both; border-left: 4px solid var(--orange); }
-    .carte.ok { border-left-color: var(--vert); }
-    .carte.ko { border-left-color: var(--rouge); }
-    @keyframes entree { from { opacity: 0; transform: translateY(8px); } }
-    .carte img { width: 54px; height: 54px; object-fit: cover; border-radius: 10px; flex: none; background: #000; }
-    .carte .txt { flex: 1; min-width: 0; }
-    .carte .l1 { font-weight: 700; }
-    .carte .l2 { font: 500 11.5px var(--mono); color: var(--texte-2); margin-top: 2px; word-break: break-word; }
-    .carte .saisie { display: flex; gap: 6px; margin-top: 8px; }
-    .carte .saisie input { flex: 1; min-width: 0; min-height: 40px; border-radius: 10px; border: 1px solid var(--bord); background: rgba(0,0,0,.35); padding: 0 10px; }
-    .btn { min-height: 40px; border-radius: 10px; border: 0; padding: 0 14px; font-weight: 700; background: linear-gradient(90deg, var(--vert), var(--cyan)); color: #03140f; }
-    .btn.second { background: var(--surface); color: var(--texte); border: 1px solid var(--bord); }
-    .vide { text-align: center; color: var(--texte-2); font-size: 14px; padding: 10px; }
-    .reglage { padding: 14px; border-radius: 16px; border: 1px solid var(--orange); background: rgba(255,181,71,.08); margin-bottom: 16px; }
-    .reglage p { margin: 0 0 10px; font-size: 14px; }
-    .reglage input { width: 100%; min-height: 46px; border-radius: 12px; border: 1px solid var(--bord); background: rgba(0,0,0,.35); padding: 0 12px; margin-bottom: 8px; }
-    .toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translateX(-50%) translateY(20px); opacity: 0; pointer-events: none;
-      background: rgba(10,18,30,.9); border: 1px solid var(--cyan); box-shadow: 0 0 24px rgba(56,225,255,.35); padding: 10px 16px; border-radius: 12px; font: 500 13px var(--mono); transition: all .25s; max-width: 90vw; }
-    .toast.visible { opacity: 1; transform: translateX(-50%) translateY(0); }
-    .lien-appli { display: block; text-align: center; margin-top: 22px; color: var(--texte-2); font-size: 13px; }
-  </style>
+  <link rel="stylesheet" href="styles.css">
+  <!-- préchargement du lecteur PDF : prêt avant même l'ouverture d'une facture -->
+  <link rel="preload" href="lib/pdf.min.js" as="script">
 </head>
-<body>
+<body class="futur">
   <header class="barre">
-    <img src="icons/icon-192.png" alt="" width="34" height="34">
-    <div class="titre">Photo BL<small id="operateur">—</small></div>
-    <div class="etat" id="etat">Prêt</div>
+    <img class="barre-logo" src="icons/icon-192.png" alt="" width="34" height="34">
+    <div class="barre-titre">
+      <div class="barre-nom" id="titre">Pointage BL</div>
+      <div class="barre-sous" id="sousTitre">Factures fournisseurs ↔ BL</div>
+    </div>
+    <button class="etat-sync" id="etatSync" title="État des envois"></button>
+    <button class="btn-icone" id="btnReglages" aria-label="Réglages">
+      <svg viewBox="0 0 24 24" width="22" height="22"><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    </button>
   </header>
-  <main id="vue"></main>
-  <div class="toast" id="toast"></div>
-  <script src="../config.js"></script>
-  <script src="photo.js"></script>
+
+  <main id="vue" class="vue"></main>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="config.js"></script>
+  <script src="core.js"></script>
+  <script src="pointage.js"></script>
 </body>
 </html>

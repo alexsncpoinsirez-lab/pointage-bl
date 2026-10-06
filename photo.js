@@ -1,7 +1,8 @@
 /* =====================================================================
    PHOTO BL — outil de terrain : photographier un BL ou une facture papier
-   - même serveur et même réglages que l'appli Pointage BL
-     (adresse dans ../config.js, clé et prénom partagés sur l'appareil)
+   - même serveur que l'appli Pointage BL (adresse dans config.js)
+   - à partager aux collaborateurs avec le lien « Partager l'outil Photo BL »
+     (⚙ Réglages de l'appli) : il contient une clé LIMITÉE aux photos
    - chaque photo est d'abord gardée sur le téléphone, puis envoyée :
      pas de réseau ? elle part toute seule au retour du réseau
    - BL : le n° est lu par le serveur et pointé sur la facture ;
@@ -18,6 +19,21 @@
     set: function (k, v) { try { localStorage.setItem('pbl_' + k, JSON.stringify(v)); } catch (e) {} }
   };
   function apiUrl() { return CFG.apiUrl || Prefs.get('api', ''); }
+
+  /* ---------- lien de configuration partagé par Alex : …/photo.html#config/… ---------- */
+  (function lireLienConfig() {
+    var h = location.hash || '';
+    if (h.indexOf('#config/') !== 0) return;
+    try {
+      var t = h.slice(8).replace(/-/g, '+').replace(/_/g, '/');
+      while (t.length % 4) t += '=';
+      var d = JSON.parse(decodeURIComponent(escape(atob(t))));
+      if (!d.k) throw 0;
+      if (!CFG.apiUrl && d.u) Prefs.set('api', d.u);
+      Prefs.set('cle', d.k);
+    } catch (e) { setTimeout(function () { toast('Lien de configuration invalide', 4000); }, 300); }
+    history.replaceState(null, '', location.pathname);
+  })();
   function cle() { return Prefs.get('cle', ''); }
 
   function el(tag, attrs, enfants) {
@@ -200,7 +216,6 @@
     vue.appendChild(el('div', { class: 'liste-titre' }, ['Dernières photos']));
     listeEl = el('div');
     vue.appendChild(listeEl);
-    vue.appendChild(el('a', { class: 'lien-appli', href: '../' }, ['Ouvrir l’appli Pointage BL complète ›']));
     dessinerListe();
   }
 
@@ -216,7 +231,7 @@
     var k = el('input', { type: 'password', placeholder: 'Clé de l’appli Pointage BL' });
     var u = CFG.apiUrl ? null : el('input', { type: 'url', placeholder: 'Adresse du serveur (…/exec)', value: Prefs.get('api', '') });
     return el('div', { class: 'reglage' }, [
-      el('p', {}, ['⚠ Outil pas encore réglé. Ouvre une fois l’appli Pointage BL (même lien, sans /photo) pour la régler, ou colle la clé ici :']),
+      el('p', {}, ['⚠ Outil pas encore réglé. Ouvre le lien de configuration reçu d’Alex, ou colle la clé ici :']),
       u, k,
       el('button', { class: 'btn', onclick: function () {
         if (u) Prefs.set('api', u.value.trim());
@@ -297,6 +312,7 @@
   setInterval(envoyerTout, 30000);
 
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+    // même service worker que l'appli Pointage BL : ouverture instantanée, même sans réseau
     window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js')['catch'](function () {}); });
   }
 })();

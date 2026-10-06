@@ -1,10 +1,10 @@
 /* Service worker : garde l'appli sur l'appareil -> ouverture instantanée, même sans réseau.
    Pour publier une mise à jour : augmenter le numéro de VERSION ci-dessous. */
-var VERSION = 'pointage-bl-v4';
+var VERSION = 'pointage-bl-v5';
 var FICHIERS = ['./', 'index.html', 'styles.css', 'config.js', 'core.js', 'pointage.js',
-  'lib/pdf.min.js', 'lib/pdf.worker.min.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png',
-  'photo.html', 'photo.js', 'photo.webmanifest', 'icons/photo-192.png', 'icons/photo-512.png'];
-// lib/ n'est pas indispensable : si le dossier manque, l'appli prend le lecteur PDF de secours (cdnjs)
+  'pdf.min.js', 'pdf.worker.min.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png',
+  'photo.html', 'photo.js', 'photo.webmanifest', 'photo-192.png', 'photo-512.png'];
+// le lecteur PDF n'est pas indispensable : s'il manque, l'appli prend le lecteur PDF de secours (cdnjs)
 var ESSENTIELS = ['./', 'index.html', 'styles.css', 'config.js', 'core.js', 'pointage.js'];
 
 self.addEventListener('install', function (e) {

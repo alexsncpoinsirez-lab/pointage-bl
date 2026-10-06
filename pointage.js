@@ -24,9 +24,9 @@
   var MAX_PDF_GARDES = 60;
 
   /* ---------- Lecteur PDF : chargé une seule fois, gardé par le service worker ----------
-     1er essai : la copie de l'appli (dossier lib/) ; secours : la même version sur cdnjs. */
+     1er essai : la copie de l'appli (fichiers pdf.min.js et pdf.worker.min.js) ; secours : la même version sur cdnjs. */
   var SOURCES_PDFJS = [
-    { lib: 'lib/pdf.min.js', worker: 'lib/pdf.worker.min.js' },
+    { lib: 'pdf.min.js', worker: 'pdf.worker.min.js' },
     { lib: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',
       worker: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js' }
   ];
@@ -47,7 +47,7 @@
       if (i >= SOURCES_PDFJS.length) { pdfjsP = null; return Promise.reject(new Error('Lecteur PDF indisponible (pas de réseau ?)')); }
       return chargerScript(SOURCES_PDFJS[i].lib).then(function () {
         window.pdfjsLib.GlobalWorkerOptions.workerSrc = SOURCES_PDFJS[i].worker;
-        if (i > 0) console.warn('Lecteur PDF chargé depuis le secours (dossier lib/ absent du site ?)');
+        if (i > 0) console.warn('Lecteur PDF chargé depuis le secours (pdf.min.js absent du site ?)');
         return window.pdfjsLib;
       }, function () { return essai(i + 1); });
     })(0);

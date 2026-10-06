@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Pointage BL</title>
+  <meta name="theme-color" content="#05080f">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Pointage BL">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
+  <link rel="stylesheet" href="styles.css">
+  <!-- préchargement du lecteur PDF : prêt avant même l'ouverture d'une facture -->
+  <link rel="preload" href="lib/pdf.min.js" as="script">
+</head>
+<body class="futur">
+  <header class="barre">
+    <img class="barre-logo" src="icons/icon-192.png" alt="" width="34" height="34">
+    <div class="barre-titre">
+      <div class="barre-nom" id="titre">Pointage BL</div>
+      <div class="barre-sous" id="sousTitre">Factures fournisseurs ↔ BL</div>
+    </div>
+    <button class="etat-sync" id="etatSync" title="État des envois"></button>
+    <button class="btn-icone" id="btnReglages" aria-label="Réglages">
+      <svg viewBox="0 0 24 24" width="22" height="22"><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    </button>
+  </header>
+
+  <main id="vue" class="vue"></main>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="config.js"></script>
+  <script src="core.js"></script>
+  <script src="pointage.js"></script>
+</body>
+</html>

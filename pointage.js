@@ -23,19 +23,34 @@
   var OUVERTES = ['A_POINTER', 'SANS_BL', 'LITIGE'];
   var MAX_PDF_GARDES = 60;
 
-  /* ---------- Lecteur PDF : chargé une seule fois, gardé par le service worker ---------- */
+  /* ---------- Lecteur PDF : chargé une seule fois, gardé par le service worker ----------
+     1er essai : la copie de l'appli (dossier lib/) ; secours : la même version sur cdnjs. */
+  var SOURCES_PDFJS = [
+    { lib: 'lib/pdf.min.js', worker: 'lib/pdf.worker.min.js' },
+    { lib: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',
+      worker: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js' }
+  ];
   var pdfjsP = null;
+  function chargerScript(src) {
+    return new Promise(function (ok, ko) {
+      var s = document.createElement('script');
+      s.src = src; s.async = true;
+      s.onload = function () { window.pdfjsLib ? ok() : ko(new Error('vide')); };
+      s.onerror = function () { s.remove(); ko(new Error('introuvable')); };
+      document.head.appendChild(s);
+    });
+  }
   function chargerPdfJs() {
     if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
     if (pdfjsP) return pdfjsP;
-    pdfjsP = new Promise(function (ok, ko) {
-      var s = document.createElement('script');
-      s.src = 'lib/pdf.min.js';
-      s.async = true;
-      s.onload = function () { window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js'; ok(window.pdfjsLib); };
-      s.onerror = function () { pdfjsP = null; ko(new Error('Lecteur PDF indisponible (pas de réseau ?)')); };
-      document.head.appendChild(s);
-    });
+    pdfjsP = (function essai(i) {
+      if (i >= SOURCES_PDFJS.length) { pdfjsP = null; return Promise.reject(new Error('Lecteur PDF indisponible (pas de réseau ?)')); }
+      return chargerScript(SOURCES_PDFJS[i].lib).then(function () {
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = SOURCES_PDFJS[i].worker;
+        if (i > 0) console.warn('Lecteur PDF chargé depuis le secours (dossier lib/ absent du site ?)');
+        return window.pdfjsLib;
+      }, function () { return essai(i + 1); });
+    })(0);
     return pdfjsP;
   }
 

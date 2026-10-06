@@ -264,6 +264,9 @@
       zoneLien
     ]));
     vue.appendChild(el('div', { class: 'bandeau' }, [el('div', { class: 'r-titre' }, ['Nom de l’opérateur sur cet appareil']), el('div', { class: 'champ' }, [op])]));
+    vue.appendChild(el('div', { class: 'bandeau' }, [el('div', { class: 'r-titre' }, ['Outil Photo BL (terrain)']),
+      el('p', { class: 'petit' }, ['Une petite appli à part, juste pour photographier les BL et les factures papier depuis le téléphone. Même serveur, mêmes réglages : rien à refaire.']),
+      el('a', { class: 'btn-second', href: 'photo/', style: 'display:inline-grid;place-items:center;text-decoration:none' }, ['📷 Ouvrir Photo BL'])]));
 
     // Pointages en attente / refusés
     var blocEnvois = el('div', { class: 'bandeau' }, [el('div', { class: 'r-titre' }, ['Envois'])]);

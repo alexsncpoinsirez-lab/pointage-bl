@@ -233,7 +233,7 @@
     var op = el('input', { type: 'text', value: Prefs.get('agent', ''), placeholder: 'Prénom' });
     op.addEventListener('change', function () { Prefs.set('agent', op.value.trim()); toast('Nom enregistré'); });
 
-    vue.appendChild(el('button', { class: 'btn-second', style: 'margin-bottom:14px', onclick: function () { location.hash = ''; } }, ['‹ Retour aux factures']));
+    vue.appendChild(el('button', { class: 'btn-second', style: 'margin-bottom:14px', onclick: function () { location.hash = ''; } }, ['‹ Retour aux fournisseurs']));
     vue.appendChild(el('div', { class: 'bandeau' }, [
       el('div', { class: 'r-titre' }, ['Connexion au serveur']),
       el('div', { class: 'champ' }, [el('label', {}, ['Adresse du serveur (projet Apps Script « Pointage BL »)']), url]),
@@ -350,18 +350,29 @@
       h = '';
     }
     if (h === 'reglages') { ecranReglages(vue); return; }
-    $('#titre').textContent = CFG.nom || 'Pointage BL';
-    $('#sousTitre').textContent = 'Factures fournisseurs ↔ BL';
+    // ''               → accueil (tuiles fournisseurs)
+    // four/<Nom>       → factures de ce fournisseur
+    // four/<Nom>/<id>  → une facture ouverte   (ancien lien f/<id> : redirigé)
     var p = h.split('/');
+    var fourn = p[0] === 'four' ? decodeURIComponent(p[1] || '') : '';
+    var idFacture = p[0] === 'four' ? decodeURIComponent(p[2] || '') : p[0] === 'f' ? decodeURIComponent(p[1] || '') : '';
+    $('#titre').textContent = CFG.nom || 'Pointage BL';
+    $('#sousTitre').textContent = fourn ? fourn + ' · factures ↔ BL' : 'Factures fournisseurs ↔ BL';
     window.MODULES.pointage.afficher(vue, {
       site: { id: ID_APPLI, nom: CFG.nom || 'Pointage BL' },
       apiUrl: apiUrl(), cle: cle(),
-      params: p[0] === 'f' ? [decodeURIComponent(p[1] || '')] : []
+      fournisseur: fourn || null,
+      params: idFacture ? [idFacture] : []
     });
   }
   window.addEventListener('hashchange', router);
   $('#btnReglages').addEventListener('click', function () { location.hash = location.hash === '#reglages' ? '' : 'reglages'; });
   $('#etatSync').addEventListener('click', function () { location.hash = 'reglages'; });
+  // Logo / titre en haut : retour à l'accueil (choix du fournisseur)
+  ['.barre-logo', '.barre-titre'].forEach(function (sel) {
+    var x = document.querySelector(sel);
+    if (x) { x.style.cursor = 'pointer'; x.addEventListener('click', function () { location.hash = ''; }); }
+  });
 
   /* ---------- Exposé au module ---------- */
   window.PM = { el: el, $: $, toast: toast, Prefs: Prefs, DB: DB, Api: Api, Envoi: Envoi, uid: uid, raison: raison };

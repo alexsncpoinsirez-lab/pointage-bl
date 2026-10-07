@@ -323,3 +323,55 @@ body.futur .pt-mini.principal { background: linear-gradient(90deg, #22e3a1, #38e
   .pt-etiquette { font-size: 8px; padding: 3px 6px; top: 2px; right: 3px; }
 }
 @media (max-width: 359px) { .pt-btn span { display: none; } }
+
+/* ===== Accueil : tuiles fournisseurs ===== */
+.pt-accueil-haut { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin: 4px 0 18px; }
+.pt-accueil-titre { font-size: 22px; font-weight: 700; letter-spacing: .01em; }
+.pt-tuiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 16px; }
+.pt-tuile { position: relative; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 22px 14px 18px;
+  border-radius: 20px; border: 1px solid var(--bord); background: var(--surface); color: inherit; font: inherit; cursor: pointer; text-align: center;
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; animation: pt-apparait .35s ease both; animation-delay: calc(var(--i) * 45ms); }
+.pt-tuile:hover, .pt-tuile:focus-visible { transform: translateY(-3px); border-color: hsl(var(--teinte) 85% 55%); box-shadow: 0 12px 30px -12px hsl(var(--teinte) 85% 50% / .55); outline: none; }
+.pt-tuile.inactif { opacity: .55; }
+.pt-tuile-nom { font-size: 18px; font-weight: 700; }
+.pt-tuile-stats { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; font-size: 12px; }
+.pt-tuile-stats span { padding: 3px 9px; border-radius: 999px; border: 1px solid var(--bord); color: var(--texte-2); }
+.pt-tuile-stats .a-pointer { color: hsl(var(--teinte) 90% 60%); border-color: hsl(var(--teinte) 80% 55% / .6); font-weight: 700; }
+.pt-tuile-stats .manquants { color: rgb(var(--v-manq)); border-color: rgba(var(--v-manq), .5); }
+.pt-tuile-stats .litige { color: rgb(var(--v-litige)); border-color: rgba(var(--v-litige), .5); }
+.pt-tuile-stats .completes { color: rgb(var(--v-mail)); border-color: rgba(var(--v-mail), .5); }
+.pt-tuile-info { font-size: 11px; color: var(--texte-2); }
+.pt-tuile-badge { position: absolute; top: 10px; right: 12px; min-width: 26px; height: 26px; padding: 0 7px; border-radius: 999px; display: grid; place-items: center;
+  font-weight: 800; font-size: 13px; color: #04121a; background: hsl(var(--teinte) 90% 58%); box-shadow: 0 0 16px hsl(var(--teinte) 90% 55% / .7); }
+.pt-tuile.a-faire .pt-tuile-badge { animation: pt-pulse 2.2s ease-in-out infinite; }
+@keyframes pt-pulse { 50% { box-shadow: 0 0 4px hsl(var(--teinte) 90% 55% / .3); } }
+@keyframes pt-apparait { from { opacity: 0; transform: translateY(8px); } }
+
+.pt-logo { display: inline-grid; place-items: center; flex: none; border-radius: 22%; overflow: hidden; font-weight: 800; letter-spacing: .02em;
+  color: hsl(var(--teinte) 95% 72%); background: radial-gradient(circle at 30% 25%, hsl(var(--teinte) 80% 45% / .45), hsl(var(--teinte) 70% 18% / .9));
+  box-shadow: inset 0 0 0 1px hsl(var(--teinte) 85% 60% / .55), 0 0 22px -6px hsl(var(--teinte) 90% 55% / .8); }
+.pt-logo.avec-image { background: #fff; color: inherit; }
+.pt-logo img { width: 100%; height: 100%; object-fit: contain; padding: 8%; }
+.pt-logo-ini { font-family: var(--mono, inherit); }
+
+/* Bouton « fournisseur » à gauche des KPIs */
+.pt-fourn-retour { display: flex; align-items: center; gap: 10px; padding: 8px 14px 8px 10px; border-radius: 16px; border: 1px solid var(--bord);
+  background: var(--surface); color: inherit; font: inherit; cursor: pointer; }
+.pt-fourn-retour:hover { border-color: var(--neon, var(--ok)); }
+.pt-fourn-retour-fl { font-size: 22px; line-height: 1; color: var(--texte-2); }
+.pt-fourn-retour-nom { font-weight: 700; font-size: 16px; }
+
+/* Liste des BL repliable : plus de place pour la facture */
+.pt-detail-grille.sans-panneau { grid-template-columns: minmax(0, 1fr); }
+.pt-bascule { margin-left: 6px; white-space: nowrap; }
+.pt-bascule.actif { border-color: var(--neon, var(--ok)); }
+
+body.futur .pt-tuile, body.futur .pt-fourn-retour { background: rgba(12, 20, 34, .62); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+body.futur .pt-accueil-titre { font-family: var(--mono); letter-spacing: .04em; }
+
+@media (max-width: 640px) {
+  .pt-tuiles { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .pt-tuile { padding: 16px 8px 14px; }
+  .pt-tuile-nom { font-size: 15px; }
+  .pt-fourn-retour { width: 100%; }
+}

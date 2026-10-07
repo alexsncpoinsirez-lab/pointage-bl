@@ -100,6 +100,34 @@
     return el('div', { class: 'pt-anneau', style: 'width:' + taille + 'px;height:' + taille + 'px', html: svg + '<span>' + fait + '/' + total + '</span>' });
   }
 
+  /* ---------- Fournisseurs : ordre des tuiles, couleur, logo ---------- */
+  var ORDRE_FOURN = ['Ackermann', 'Tilly Manitou', 'Haag', 'Mecavista', 'Manutone'];
+  var TEINTES = { 'ackermann': 195, 'tilly manitou': 28, 'haag': 145, 'mecavista': 275, 'manutone': 350 };
+  function teinte(nom) {
+    var k = String(nom || '').toLowerCase();
+    if (TEINTES[k] !== undefined) return TEINTES[k];
+    var h = 0; for (var i = 0; i < k.length; i++) h = (h * 31 + k.charCodeAt(i)) % 360;
+    return h;
+  }
+  function slug(nom) {
+    return String(nom || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  }
+  function initiales(nom) {
+    var m = String(nom || '?').split(/\s+/).filter(Boolean);
+    return (m.length > 1 ? m[0][0] + m[1][0] : m[0].slice(0, 2)).toUpperCase();
+  }
+  /* Logo : fichier « logo-<nom>.png » posé à côté de l'appli (ex. logo-tilly-manitou.png).
+     S'il n'existe pas : pastille lumineuse avec les initiales. */
+  function logoFournisseur(nom, taille) {
+    var box = el('span', { class: 'pt-logo', style: 'width:' + taille + 'px;height:' + taille + 'px;--teinte:' + teinte(nom) + ';font-size:' + Math.round(taille * 0.36) + 'px' }, [
+      el('span', { class: 'pt-logo-ini' }, [initiales(nom)])]);
+    var img = new Image();
+    img.alt = '';
+    img.onload = function () { box.classList.add('avec-image'); box.innerHTML = ''; box.appendChild(img); };
+    img.src = 'logo-' + slug(nom) + '.png';
+    return box;
+  }
+
   /* =================================================================== */
   window.MODULES.pointage = {
     afficher: function (vue, ctx) {
@@ -109,6 +137,8 @@
       var filtre = 'ouvertes', recherche = '', selId = null, selBL = null;
       var pdfCourant = null, blocs = [], numsVusPdf = {};
       var largeurRendu = 0, rendreSeq = 0;
+      var FOURN = ctx.fournisseur || null;   // null = page d'accueil (tuiles fournisseurs)
+      var panneauVisible = PM.Prefs.get('panneauBL', '1') !== '0';
       var enRafraichissement = false, avaitAttente = false;
 
       vue.style.maxWidth = '1440px';
@@ -294,6 +324,7 @@
       }
 
       /* ---------------- Dessin de l'écran ---------------- */
+      function facturesVues() { return FOURN ? E.factures.filter(function (f) { return f.Fournisseur === FOURN; }) : E.factures; }
       function facture(id) { return E && E.factures.filter(function (f) { return f.ID === id; })[0]; }
       function config(nom) {
         return (E.fournisseurs || []).filter(function (x) { return x.Nom === nom; })[0] ||
@@ -308,6 +339,7 @@
         // La visionneuse PDF déjà rendue est conservée (pas de re-dessin du PDF à chaque action)
         var pagesExistantes = zones.pages && selId && zones.pagesPour === selId ? zones.pages : null;
         racine.innerHTML = '';
+        if (!FOURN) { racine.classList.remove('pt-detail-ouvert'); racine.appendChild(accueil()); return; }
         racine.classList.toggle('pt-detail-ouvert', !!selId);
 
         racine.appendChild(barreHaut());
@@ -328,7 +360,8 @@
             chargerEtRendre(f);
           }
           grille.appendChild(visu);
-          grille.appendChild(panneauBL(f));
+          if (panneauVisible) grille.appendChild(panneauBL(f));
+          else grille.classList.add('sans-panneau');
           det.appendChild(grille);
           corps.appendChild(det);
           majVoiles();
@@ -342,6 +375,57 @@
         if (!selId || !petitEcran()) window.scrollTo(0, y);
       }
 
+      /* ---------------- Page d'accueil : un fournisseur = une tuile ---------------- */
+      function listeFournisseurs() {
+        var noms = ORDRE_FOURN.slice();
+        (E.fournisseurs || []).forEach(function (x) { if (noms.indexOf(x.Nom) < 0) noms.push(x.Nom); });
+        E.factures.forEach(function (f) { if (f.Fournisseur && noms.indexOf(f.Fournisseur) < 0) noms.push(f.Fournisseur); });
+        var actifs = (E.fournisseurs || []).map(function (x) { return x.Nom; });
+        return noms.map(function (n) { return { nom: n, actif: !actifs.length || actifs.indexOf(n) >= 0 }; });
+      }
+      function accueil() {
+        var bloc = el('div', { class: 'pt-accueil' });
+        var toutes = E.factures.filter(function (f) { return OUVERTES.indexOf(f.Statut) >= 0; }).length;
+        var sync = el('div', { class: 'pt-sync' });
+        bloc.appendChild(el('div', { class: 'pt-accueil-haut' }, [
+          el('div', {}, [
+            el('div', { class: 'pt-accueil-titre' }, ['Choisis un fournisseur']),
+            el('div', { class: 'petit' }, [toutes ? toutes + ' facture' + (toutes > 1 ? 's' : '') + ' à pointer au total' : 'Tout est à jour ✓'])
+          ]),
+          el('div', { class: 'pt-actions' }, [
+            el('button', { class: 'pt-btn', title: 'Photo d’un BL papier', onclick: function () { feuillePhoto(''); } }, ['📷 ', el('span', {}, ['BL papier'])]),
+            el('button', { class: 'pt-btn', title: 'Déposer une facture', onclick: deposerFacture }, ['＋ ', el('span', {}, ['Facture'])]),
+            el('button', { class: 'pt-btn', title: 'Relancer la recherche des BL', onclick: menuScan }, ['⚡ ', el('span', {}, ['Scan'])]),
+            sync
+          ])
+        ]));
+        var grille = el('div', { class: 'pt-tuiles' });
+        listeFournisseurs().forEach(function (x, i) {
+          var fs = E.factures.filter(function (f) { return f.Fournisseur === x.nom; });
+          var ouv = fs.filter(function (f) { return OUVERTES.indexOf(f.Statut) >= 0; });
+          var manq = 0; ouv.forEach(function (f) { f.lignes.forEach(function (l) { if (l.Statut === 'MANQUANT') manq++; }); });
+          var compl = fs.filter(function (f) { return f.Statut === 'COMPLETE' || f.Statut === 'COMPLETE_FORCEE'; }).length;
+          var litiges = fs.filter(function (f) { return f.Statut === 'LITIGE'; }).length;
+          grille.appendChild(el('button', { class: 'pt-tuile' + (ouv.length ? ' a-faire' : '') + (x.actif ? '' : ' inactif'),
+            style: '--i:' + i + ';--teinte:' + teinte(x.nom),
+            onclick: function () { location.hash = 'four/' + encodeURIComponent(x.nom); } }, [
+            ouv.length ? el('span', { class: 'pt-tuile-badge' }, [String(ouv.length)]) : null,
+            el('div', { class: 'pt-tuile-logo' }, [logoFournisseur(x.nom, 84)]),
+            el('div', { class: 'pt-tuile-nom' }, [x.nom]),
+            el('div', { class: 'pt-tuile-stats' }, [
+              el('span', { class: ouv.length ? 'a-pointer' : '' }, [ouv.length + ' à pointer']),
+              manq ? el('span', { class: 'manquants' }, [manq + ' BL manquant' + (manq > 1 ? 's' : '')]) : null,
+              litiges ? el('span', { class: 'litige' }, [litiges + ' litige' + (litiges > 1 ? 's' : '')]) : null,
+              compl ? el('span', { class: 'completes' }, [compl + ' complète' + (compl > 1 ? 's' : '')]) : null
+            ]),
+            x.actif ? null : el('div', { class: 'pt-tuile-info' }, ['À activer dans la feuille Fournisseurs'])
+          ]));
+        });
+        bloc.appendChild(grille);
+        setTimeout(function () { majIndicateurSync(enRafraichissement ? 'sync' : 'ok'); }, 0);
+        return bloc;
+      }
+
       function majIndicateurSync(etat, e) {
         var b = racine.querySelector('.pt-sync');
         if (!b) return;
@@ -351,12 +435,13 @@
       }
 
       function barreHaut() {
-        var ouvertes = E.factures.filter(function (f) { return OUVERTES.indexOf(f.Statut) >= 0; });
+        var vues = facturesVues();
+        var ouvertes = vues.filter(function (f) { return OUVERTES.indexOf(f.Statut) >= 0; });
         var manquants = 0;
         ouvertes.forEach(function (f) { f.lignes.forEach(function (l) { if (l.Statut === 'MANQUANT') manquants++; }); });
-        var completes = E.factures.filter(function (f) { return f.Statut === 'COMPLETE' || f.Statut === 'COMPLETE_FORCEE'; }).length;
+        var completes = vues.filter(function (f) { return f.Statut === 'COMPLETE' || f.Statut === 'COMPLETE_FORCEE'; }).length;
         var il30 = Date.now() - 30 * 86400000;
-        var envoyees = E.factures.filter(function (f) { var d = dateFr(f.DateEnvoi); return f.Statut === 'ENVOYEE' && d && d.getTime() > il30; }).length;
+        var envoyees = vues.filter(function (f) { var d = dateFr(f.DateEnvoi); return f.Statut === 'ENVOYEE' && d && d.getTime() > il30; }).length;
 
         function kpi(val, lib, cls, f, sansActif) {
           return el('button', { class: 'pt-kpi ' + cls + (filtre === f && !sansActif ? ' actif' : ''), onclick: function () { filtre = f; dessiner(); } }, [
@@ -364,6 +449,8 @@
         }
         var sync = el('div', { class: 'pt-sync' });
         var barre = el('div', { class: 'pt-barre' }, [
+          el('button', { class: 'pt-fourn-retour', title: 'Changer de fournisseur', onclick: function () { location.hash = ''; } }, [
+            el('span', { class: 'pt-fourn-retour-fl' }, ['‹']), logoFournisseur(FOURN, 38), el('span', { class: 'pt-fourn-retour-nom' }, [FOURN])]),
           el('div', { class: 'pt-kpis' }, [
             kpi(ouvertes.length, 'Factures à pointer', 'a-pointer', 'ouvertes'),
             kpi(manquants, 'BL manquants', 'manquants', 'ouvertes', true),
@@ -394,7 +481,7 @@
         col.appendChild(liste);
         function remplir() {
           liste.innerHTML = '';
-          var fs = E.factures.filter(function (f) {
+          var fs = facturesVues().filter(function (f) {
             if (filtre === 'ouvertes' && OUVERTES.indexOf(f.Statut) < 0) return false;
             if (filtre === 'completes' && f.Statut !== 'COMPLETE' && f.Statut !== 'COMPLETE_FORCEE') return false;
             if (filtre === 'envoyees' && f.Statut !== 'ENVOYEE') return false;
@@ -434,7 +521,9 @@
       function surRetourArriere() { if (vivant() && selId && petitEcran()) fermer(); }
       function ouvrirDepuisLien() { // #outil/<id>/<factureId>
         var id = ctx.params && ctx.params[0];
-        if (id && facture(id) && !selId) ouvrir(id);
+        var fx = id && facture(id);
+        if (fx && !FOURN) { location.replace('#four/' + encodeURIComponent(fx.Fournisseur) + '/' + encodeURIComponent(id)); return; }
+        if (fx && !selId) ouvrir(id);
       }
 
       function enteteFacture(f) {
@@ -445,7 +534,13 @@
             el('div', { class: 'pt-entete-titre' }, [f.Fournisseur + ' · facture n°' + f.NumFacture]),
             el('div', { class: 'petit' }, [(f.DateFacture ? 'du ' + f.DateFacture + ' · ' : '') + 'importée ' + (f.DateImport || '') + (f.Commentaire ? ' · ' + f.Commentaire : '')])
           ]),
-          el('span', { class: 'pt-chip grand st-' + f.Statut }, [LIB_F[f.Statut] || f.Statut])
+          el('span', { class: 'pt-chip grand st-' + f.Statut }, [LIB_F[f.Statut] || f.Statut]),
+          el('button', { class: 'pt-btn pt-bascule' + (panneauVisible ? ' actif' : ''), title: panneauVisible ? 'Masquer la liste des BL' : 'Afficher la liste des BL',
+            onclick: function () {
+              panneauVisible = !panneauVisible; PM.Prefs.set('panneauBL', panneauVisible ? '1' : '0');
+              dessiner();
+              setTimeout(function () { var z = racine.querySelector('.pt-pages'); if (pdfCourant && z && Math.abs(largeurDispo(z) - largeurRendu) > 40) rendrePdf(); }, 60);
+            } }, [panneauVisible ? '⇥ Masquer BL' : '☰ BL (' + (f.NbOK || 0) + '/' + (f.NbBL || 0) + ')'])
         ]);
       }
 
@@ -787,7 +882,7 @@
         if (!PM.Prefs.get('agent', '')) { choisirOperateur(function () { feuillePhoto(numImpose); }); return; }
         var f = selId && facture(selId);
         var choixF = el('select', { class: 'pt-champ' }, (E.fournisseurs || []).map(function (x) {
-          return el('option', { selected: f && f.Fournisseur === x.Nom ? 'selected' : null }, [x.Nom]);
+          return el('option', { selected: (f ? f.Fournisseur === x.Nom : FOURN === x.Nom) ? 'selected' : null }, [x.Nom]);
         }));
         var num = el('input', { type: 'text', inputmode: 'numeric', class: 'pt-champ', placeholder: 'N° de BL (facultatif, sinon lu sur la photo)', value: numImpose || '' });
         var res = el('div', { class: 'pt-resultats' });

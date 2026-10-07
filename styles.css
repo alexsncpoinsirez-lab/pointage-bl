@@ -375,3 +375,13 @@ body.futur .pt-accueil-titre { font-family: var(--mono); letter-spacing: .04em; 
   .pt-tuile-nom { font-size: 15px; }
   .pt-fourn-retour { width: 100%; }
 }
+
+/* Logos fournisseurs (images) : format paysage, fond blanc */
+.pt-logo.avec-image { border-radius: 14px; box-shadow: 0 0 0 1px rgba(255,255,255,.12), 0 0 22px -8px hsl(var(--teinte) 90% 55% / .7); }
+.pt-logo img { padding: 6px 10px; }
+.pt-tuile .pt-logo.avec-image { width: 100% !important; max-width: 190px; height: 84px !important; }
+.pt-fourn-retour .pt-logo.avec-image { width: 86px !important; height: 38px !important; border-radius: 9px; }
+.pt-fourn-retour .pt-logo.avec-image img { padding: 3px 5px; }
+.pt-logo img { box-sizing: border-box; display: block; }
+.pt-logo.avec-image { display: flex; align-items: center; justify-content: center; }
+.pt-logo.avec-image img { min-width: 0; min-height: 0; flex: 1 1 auto; }

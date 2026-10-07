@@ -1,9 +1,10 @@
 /* Service worker : garde l'appli sur l'appareil -> ouverture instantanée, même sans réseau.
    Pour publier une mise à jour : augmenter le numéro de VERSION ci-dessous. */
-var VERSION = 'pointage-bl-v6';
+var VERSION = 'pointage-bl-v7';
 var FICHIERS = ['./', 'index.html', 'styles.css', 'config.js', 'core.js', 'pointage.js',
   'pdf.min.js', 'pdf.worker.min.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png',
-  'photo.html', 'photo.js', 'photo.webmanifest', 'photo-192.png', 'photo-512.png'];
+  'photo.html', 'photo.js', 'photo.webmanifest', 'photo-192.png', 'photo-512.png',
+  'logo-ackermann.png', 'logo-tilly-manitou.png', 'logo-haag.png', 'logo-mecavista.png', 'logo-manutone.png'];
 // le lecteur PDF n'est pas indispensable : s'il manque, l'appli prend le lecteur PDF de secours (cdnjs)
 var ESSENTIELS = ['./', 'index.html', 'styles.css', 'config.js', 'core.js', 'pointage.js'];
 

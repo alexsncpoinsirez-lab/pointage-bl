@@ -113,8 +113,8 @@
     return el('span', { class: 'pt-oeil-ico', html: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 12S5.5 4.5 12 4.5 22.5 12 22.5 12 18.5 19.5 12 19.5 1.5 12 1.5 12z"/><circle cx="12" cy="12" r="3.2"/></svg>' });
   }
   /* ---------- Fournisseurs : ordre des tuiles, couleur, logo ---------- */
-  var ORDRE_FOURN = ['Ackermann', 'Tilly Manitou', 'Haag', 'Mecavista', 'Manutone'];
-  var TEINTES = { 'ackermann': 195, 'tilly manitou': 28, 'haag': 145, 'mecavista': 275, 'manutone': 350 };
+  var ORDRE_FOURN = ['Ackermann', 'Tilly Manitou', 'Haag', 'Mecavista', 'Manutone', 'Farminove'];
+  var TEINTES = { 'ackermann': 195, 'tilly manitou': 28, 'haag': 145, 'mecavista': 275, 'manutone': 350, 'farminove': 5 };
   function teinte(nom) {
     var k = String(nom || '').toLowerCase();
     if (TEINTES[k] !== undefined) return TEINTES[k];

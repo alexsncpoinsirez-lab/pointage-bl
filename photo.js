@@ -158,7 +158,7 @@
           }
           return Photos.garder(p);
         }, function (e) {
-          if (e.reseau) { p.etat = 'attente'; p.resultat = e.message + ' · nouvel essai automatique'; return Photos.garder(p).then(function () { throw 'stop'; }); }
+          if (e.reseau || /opérateur/i.test(e.message)) { p.etat = 'attente'; p.resultat = e.message + ' · nouvel essai automatique'; return Photos.garder(p).then(function () { throw 'stop'; }); }
           p.etat = 'erreur'; p.resultat = e.message;
           return Photos.garder(p);
         }).then(function () { dessinerListe(); return suivante(i + 1); });
@@ -289,6 +289,7 @@
       var n = window.prompt('Ton prénom (noté sur chaque photo) :', '');
       if (n && n.trim()) Prefs.set('agent', n.trim());
       $('#operateur').textContent = 'Opérateur · ' + Prefs.get('agent', '?');
+      if (!Prefs.get('agent', '')) { toast('Indique ton prénom pour envoyer des photos (appuie sur « Opérateur » en haut).', 5000); return; }
     }
     (function suivant(i) {
       if (i >= fichiers.length) { envoyerTout(); return; }
@@ -317,6 +318,10 @@
   Photos.toutes().then(function (l) {
     return Promise.all(l.filter(function (p) { return p.etat === 'envoi'; }).map(function (p) { p.etat = 'attente'; return Photos.garder(p); }));
   }).then(function () { dessiner(); chargerListe(); envoyerTout(); });
+  $('#operateur').addEventListener('click', function () {
+    var n = window.prompt('Ton prénom (noté sur chaque photo) :', Prefs.get('agent', ''));
+    if (n !== null && n.trim()) { Prefs.set('agent', n.trim()); dessiner(); envoyerTout(); }
+  });
   window.addEventListener('online', envoyerTout);
   window.addEventListener('offline', majEtat);
   document.addEventListener('visibilitychange', function () { if (!document.hidden) envoyerTout(); });

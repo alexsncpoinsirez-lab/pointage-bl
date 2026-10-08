@@ -180,7 +180,9 @@
     return {
       ajouter: function (siteId, payload) {
         payload.id = payload.id || uid();
-        return DB.ajouterEnvoi({ siteId: siteId, payload: payload, cree: Date.now() }).then(function () { vider(true); return payload.id; });
+        return DB.ajouterEnvoi({ siteId: siteId, payload: payload, cree: Date.now() })
+          .then(notifier)                                   // la pastille passe tout de suite à « 1 à envoyer »
+          .then(function () { vider(true); return payload.id; });
       },
       vider: vider,
       forcer: function () { return vider(true); },
@@ -342,6 +344,8 @@
     var h = (location.hash || '').replace(/^#\/?/, '');
     var vue = $('#vue');
     Envoi.oublierEcouteurs();
+    // une feuille ou un aperçu resté ouvert ne doit pas survivre au changement d'écran
+    Array.prototype.forEach.call(document.querySelectorAll('.pt-fond, .pt-apercu'), function (x) { x.remove(); });
     vue.innerHTML = '';
     vue.removeAttribute('style');
     if (h.indexOf('config/') === 0) {

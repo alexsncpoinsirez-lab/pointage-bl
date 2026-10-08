@@ -412,3 +412,6 @@ body.futur .pt-accueil-titre { font-family: var(--mono); letter-spacing: .04em; 
 .pt-fond, .pt-apercu { --v-mail: 34, 170, 110; --v-photo: 14, 150, 170; --v-manuel: 70, 110, 230; --v-litige: 214, 58, 48; --v-manq: 214, 140, 30; }
 body.futur .pt-fond, body.futur .pt-apercu { --v-mail: 34, 227, 161; --v-photo: 56, 225, 255; --v-manuel: 130, 140, 255; --v-litige: 255, 77, 109; --v-manq: 255, 181, 71; }
 .pt-apercu-texte { align-self: start; }
+.pt-sync { cursor: pointer; }
+.pt-sync.scan { color: var(--neon, var(--ok)); animation: pt-pulse-txt 1.4s ease-in-out infinite; }
+@keyframes pt-pulse-txt { 50% { opacity: .45; } }

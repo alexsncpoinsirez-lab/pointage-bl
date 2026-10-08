@@ -68,19 +68,28 @@
       r.readAsDataURL(f);
     });
   }
-  // Photo réduite (2200 px max, JPEG) : envoi rapide même en 4G faible
+  // Photo réduite (1800 px max, JPEG ≈ 300 Ko) : envoi rapide même en 4G faible.
+  // Si le téléphone n'arrive pas à la réduire (format HEIC…), on envoie l'original.
   function compresser(f) {
     return new Promise(function (ok, ko) {
       var img = new Image(), url = URL.createObjectURL(f);
       img.onload = function () {
-        var r = Math.min(1, 2200 / Math.max(img.naturalWidth, img.naturalHeight));
-        var c = document.createElement('canvas');
-        c.width = Math.round(img.naturalWidth * r); c.height = Math.round(img.naturalHeight * r);
-        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-        URL.revokeObjectURL(url);
-        ok({ base64: c.toDataURL('image/jpeg', 0.85).split(',')[1], mime: 'image/jpeg' });
+        try {
+          var r = Math.min(1, 1800 / Math.max(img.naturalWidth, img.naturalHeight));
+          var c = document.createElement('canvas');
+          c.width = Math.round(img.naturalWidth * r); c.height = Math.round(img.naturalHeight * r);
+          c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+          URL.revokeObjectURL(url);
+          var b = c.toDataURL('image/jpeg', 0.82).split(',')[1];
+          if (!b || b.length < 1000) throw new Error('vide');
+          ok({ base64: b, mime: 'image/jpeg' });
+        } catch (e) { URL.revokeObjectURL(url); original(); }
       };
-      img.onerror = function () { ko(new Error('Image illisible')); };
+      img.onerror = function () { URL.revokeObjectURL(url); original(); };
+      function original() {
+        if (f.size > 12 * 1024 * 1024) { ko(new Error('Photo trop lourde et illisible par le téléphone : reprends-la en JPEG.')); return; }
+        fichierVersB64(f).then(function (b) { ok({ base64: b, mime: f.type || 'image/jpeg' }); }, ko);
+      }
       img.src = url;
     });
   }
@@ -174,7 +183,13 @@
       });
       var auRetour = function () { if (!document.hidden && vivant()) rafraichir(false); };
       document.addEventListener('visibilitychange', auRetour);
-      var minuterie = setInterval(function () { if (vivant() && !document.hidden) rafraichir(false); }, 60000);
+      // toutes les 60 s ; toutes les 12 s pendant un scan demandé depuis l'appli
+      var derniereAuto = Date.now();
+      var minuterie = setInterval(function () {
+        if (!vivant() || document.hidden) return;
+        var delai = (E && E.scanEnCours) ? 12000 : 60000;
+        if (Date.now() - derniereAuto >= delai) { derniereAuto = Date.now(); rafraichir(false); }
+      }, 3000);
       window.addEventListener('popstate', surRetourArriere);
       var redim = null;
       window.addEventListener('resize', function () {
@@ -201,6 +216,39 @@
         var corps = { action: action, cle: ctx.cle, operateur: PM.Prefs.get('agent', '') };
         Object.keys(extra || {}).forEach(function (k) { corps[k] = extra[k]; });
         return PM.Api.appeler(ctx.apiUrl, corps, delai || 60000);
+      }
+
+      /*
+       * Envoi « fiable » d'une photo / facture : si la réponse se perd (réseau 4G qui coupe,
+       * lecture OCR un peu longue), on demande au serveur où en est cet envoi au lieu d'afficher
+       * un échec. La photo n'est jamais enregistrée deux fois.
+       */
+      function envoiFiable(action, extra, delai, suivi) {
+        var id = PM.uid(), debut = Date.now(), envois = 0;
+        extra.idEnvoi = id;
+        function pause(ms) { return new Promise(function (ok) { setTimeout(ok, ms); }); }
+        function envoyer() {
+          envois++;
+          return appel(action, extra, delai).then(function (j) { return j.enCours ? attendre() : j; }, function (e) {
+            if (e.type === 'serveur') throw e;   // vraie erreur expliquée par le serveur
+            return attendre();
+          });
+        }
+        function attendre() {
+          if (Date.now() - debut > 300000) throw new Error('Pas de réponse du serveur depuis 5 min. Regarde dans « BL reçus » si la photo est arrivée.');
+          if (suivi) suivi(navigator.onLine === false ? 'pas de réseau, on attend…' : 'lecture en cours, on vérifie…');
+          return pause(navigator.onLine === false ? 8000 : 5000).then(function () {
+            if (navigator.onLine === false) return attendre();
+            return appel('pointage.envoiEtat', { idEnvoi: id }, 20000).then(function (j) {
+              if (j.inconnu) {
+                if (envois < 3) return envoyer();
+                throw new Error('La photo n’arrive pas au serveur (réseau trop faible ?). Réessaie près du bureau / en Wi-Fi.');
+              }
+              return j.enCours ? attendre() : j;
+            }, function (e) { if (e.type === 'serveur') throw e; return attendre(); });
+          });
+        }
+        return envoyer();
       }
 
       function rafraichir(premier) {
@@ -259,7 +307,11 @@
         l._attente = true;
         if (p.action === 'VALIDER') { l.Statut = 'VALIDE_MANUEL'; l.Operateur = p.operateur; l.Commentaire = p.commentaire || ''; l.DateValidation = maintenant; }
         else if (p.action === 'LITIGE') { l.Statut = 'LITIGE'; l.Operateur = p.operateur; l.Commentaire = p.commentaire; l.DateValidation = maintenant; }
-        else if (p.action === 'ANNULER') { l.Statut = 'MANQUANT'; l.Operateur = ''; l.Commentaire = ''; l.Detail = ''; l.FichierId = ''; l.DateValidation = ''; }
+        else if (p.action === 'ANNULER') {
+          var auto = l.Statut === 'TROUVE_MAIL' || l.Statut === 'TROUVE_PHOTO';
+          l.Statut = 'MANQUANT'; l.Operateur = ''; l.Commentaire = auto ? 'Dépointé par ' + p.operateur : ''; l.Detail = ''; l.FichierId = ''; l.MsgId = ''; l.DateValidation = '';
+          if (auto) l.Source = 'EXCLU';
+        }
         else if (p.action === 'SUPPRIMER') { f.lignes = f.lignes.filter(function (x) { return x !== l; }); }
       }
 
@@ -389,7 +441,7 @@
       function accueil() {
         var bloc = el('div', { class: 'pt-accueil' });
         var toutes = E.factures.filter(function (f) { return OUVERTES.indexOf(f.Statut) >= 0; }).length;
-        var sync = el('div', { class: 'pt-sync' });
+        var sync = boutonSync();
         bloc.appendChild(el('div', { class: 'pt-accueil-haut' }, [
           el('div', {}, [
             el('div', { class: 'pt-accueil-titre' }, ['Choisis un fournisseur']),
@@ -429,12 +481,24 @@
         return bloc;
       }
 
+      var derniereErreurSync = '';
       function majIndicateurSync(etat, e) {
         var b = racine.querySelector('.pt-sync');
+        if (etat === 'ko') derniereErreurSync = (e && e.message) || '';
+        if (etat === 'ok') derniereErreurSync = '';
         if (!b) return;
-        b.className = 'pt-sync ' + etat;
+        b.className = 'pt-sync ' + etat + (E && E.scanEnCours && etat !== 'ko' ? ' scan' : '');
         b.textContent = etat === 'sync' ? 'SYNCHRO…' : etat === 'ko' ? (PM.raison ? PM.raison(e) : 'Hors ligne') + ' · copie locale'
+          : (E && E.scanEnCours) ? '⚡ SCAN EN COURS…'
           : 'SERVEUR ' + (E && E.derniereSynchro ? '· SCAN ' + E.derniereSynchro : 'À JOUR');
+        b.title = derniereErreurSync || (E && E.scanEnCours ? 'Le serveur relit les mails et les factures' : 'État du lien avec le serveur');
+      }
+      function boutonSync() {
+        return el('div', { class: 'pt-sync', role: 'button', onclick: function () {
+          if (derniereErreurSync) PM.toast('Serveur : ' + derniereErreurSync, 7000);
+          else if (E && E.scanEnCours) PM.toast('Scan en cours sur le serveur : les BL trouvés apparaîtront d’ici quelques minutes.', 5000);
+          else rafraichir(false);
+        } });
       }
 
       function barreHaut() {
@@ -450,7 +514,7 @@
           return el('button', { class: 'pt-kpi ' + cls + (filtre === f && !sansActif ? ' actif' : ''), onclick: function () { filtre = f; dessiner(); } }, [
             el('div', { class: 'pt-kpi-val' }, [String(val)]), el('div', { class: 'pt-kpi-lib' }, [lib])]);
         }
-        var sync = el('div', { class: 'pt-sync' });
+        var sync = boutonSync();
         var barre = el('div', { class: 'pt-barre' }, [
           el('button', { class: 'pt-fourn-retour', title: 'Changer de fournisseur', onclick: function () { location.hash = ''; } }, [
             el('span', { class: 'pt-fourn-retour-fl' }, ['‹']), logoFournisseur(FOURN, 38), el('span', { class: 'pt-fourn-retour-nom' }, [FOURN])]),
@@ -875,11 +939,13 @@
       }
       function lancerScan(force) {
         if (!PM.Prefs.get('agent', '')) { choisirOperateur(function () { lancerScan(force); }); return; }
-        PM.toast(force ? 'Scan forcé lancé… (jusqu’à 5 min)' : 'Scan lancé…', 4000);
         majIndicateurSync('sync');
-        appel('pointage.scan', { force: !!force }, force ? 330000 : 150000).then(function (j) {
-          var s = j.resume;
-          PM.toast(s ? 'Scan terminé : ' + s.factures + ' facture(s), ' + s.bl + ' BL trouvé(s), ' + s.pointes + ' pointé(s)' : 'Scan terminé', 6000);
+        appel('pointage.scan', { force: !!force }, 330000).then(function (j) {
+          if (j.dejaEnCours) PM.toast('Un scan est déjà en cours : patiente quelques minutes.', 5000);
+          else if (j.lance) { if (E) E.scanEnCours = true; PM.toast(force ? 'Scan forcé lancé : il tourne sur le serveur (jusqu’à 5 min), les résultats arrivent tout seuls.' : 'Scan lancé : résultats dans 1 à 2 minutes.', 6000); }
+          else if (j.resume) PM.toast('Scan terminé : ' + j.resume.factures + ' facture(s), ' + j.resume.bl + ' BL trouvé(s), ' + j.resume.pointes + ' pointé(s)', 6000);
+          else PM.toast('Scan terminé', 4000);
+          derniereAuto = Date.now();
           rafraichir(false);
         })['catch'](function (e) { PM.toast('Scan : ' + e.message, 6000); majIndicateurSync('ko', e); });
       }
@@ -925,7 +991,9 @@
           res.insertBefore(ligne, res.firstChild);
           (fic.type === 'application/pdf' ? fichierVersB64(fic).then(function (b) { return { base64: b, mime: 'application/pdf' }; }) : compresser(fic))
             .then(function (d) {
-              return appel('pointage.photo', { base64: d.base64, mime: d.mime, nom: fic.name, fournisseur: fournisseur, numImpose: numImpose }, 120000);
+              ligne.textContent = '⏳ ' + fic.name + ' : envoi (' + Math.round(d.base64.length * 0.75 / 1024) + ' Ko) et lecture du n°…';
+              return envoiFiable('pointage.photo', { base64: d.base64, mime: d.mime, nom: fic.name, fournisseur: fournisseur, numImpose: numImpose }, 90000,
+                function (m) { ligne.textContent = '⏳ ' + fic.name + ' : ' + m; });
             }).then(function (r) {
               if (r.retenus && r.retenus.length) {
                 ligne.className = 'pt-resultat ok';
@@ -971,7 +1039,8 @@
             var ligne = el('div', { class: 'pt-resultat' }, ['⏳ ' + l[i].name + ' : import et lecture des BL…']);
             res.insertBefore(ligne, res.firstChild);
             fichierVersB64(l[i]).then(function (b) {
-              return appel('pointage.facture', { base64: b, nom: l[i].name, fournisseur: choixF.value }, 120000);
+              return envoiFiable('pointage.facture', { base64: b, nom: l[i].name, fournisseur: choixF.value }, 120000,
+                function (m) { ligne.textContent = '⏳ ' + l[i].name + ' : ' + m; });
             }).then(function () { ligne.className = 'pt-resultat ok'; ligne.textContent = '✓ ' + l[i].name + ' importée'; })
               ['catch'](function (e) { ligne.className = 'pt-resultat ko'; ligne.textContent = '✗ ' + l[i].name + ' : ' + e.message; })
               .then(function () { suivante(i + 1); });

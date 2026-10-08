@@ -1,6 +1,6 @@
 /* Service worker : garde l'appli sur l'appareil -> ouverture instantanée, même sans réseau.
    Pour publier une mise à jour : augmenter le numéro de VERSION ci-dessous. */
-var VERSION = 'pointage-bl-v9';
+var VERSION = 'pointage-bl-v10';
 var FICHIERS = ['./', 'index.html', 'styles.css', 'config.js', 'core.js', 'pointage.js',
   'pdf.min.js', 'pdf.worker.min.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png',
   'photo.html', 'photo.js', 'photo.webmanifest', 'photo-192.png', 'photo-512.png',

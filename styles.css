@@ -415,3 +415,8 @@ body.futur .pt-fond, body.futur .pt-apercu { --v-mail: 34, 227, 161; --v-photo: 
 .pt-sync { cursor: pointer; }
 .pt-sync.scan { color: var(--neon, var(--ok)); animation: pt-pulse-txt 1.4s ease-in-out infinite; }
 @keyframes pt-pulse-txt { 50% { opacity: .45; } }
+.pt-plus { margin-top: 10px; border: 1px dashed var(--bord); border-radius: 12px; padding: 6px 10px; }
+.pt-plus summary { cursor: pointer; font-size: 12.5px; color: var(--texte-2); list-style: none; }
+.pt-plus summary::-webkit-details-marker { display: none; }
+.pt-plus-litige { display: flex; flex-wrap: wrap; gap: 6px; }
+.pt-oeil.facture { border-color: rgba(var(--v-manq), .55); background: rgba(var(--v-manq), .12); color: rgb(var(--v-manq)); }

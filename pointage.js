@@ -806,8 +806,6 @@
                   saisir({ type: 'pointage.action', factureId: f.ID, numBL: num, action: 'VALIDER', commentaire: c }, 'BL ' + num + ' validé');
                 });
               });
-              bouton('📷 Photo', '', function () { feuillePhoto(num); });
-              bouton('⚠ Litige', 'danger', function () { litige(f, num); });
               if (l.Source === 'AJOUT') bouton('🗑', '', function () {
                 if (window.confirm('Retirer le BL ' + num + ' de la facture ?')) saisir({ type: 'pointage.action', factureId: f.ID, numBL: num, action: 'SUPPRIMER' }, 'BL retiré');
               });
@@ -825,25 +823,21 @@
             el('div', { class: 'pt-bl-haut' }, [
               el('span', { class: 'pt-bl-num' }, ['BL ' + num, horsPdf ? el('small', {}, [' hors PDF']) : null]),
               el('span', { class: 'pt-bl-etat' }, [(l._attente ? '⏳ ' : '') + (LIB[l.Statut] || l.Statut)]),
-              idApercu ? el('button', { class: 'pt-oeil', title: 'Voir le BL', 'aria-label': 'Voir le BL ' + num,
-                onclick: function (e) { e.stopPropagation(); voirFichier(idApercu, 'BL ' + num); } }, [ICONE_OEIL()]) : null
+              el('button', { class: 'pt-oeil' + (idApercu ? '' : ' facture'), title: idApercu ? 'Voir le BL reçu' : 'Voir ce BL sur la facture', 'aria-label': 'Voir le BL ' + num,
+                onclick: function (e) {
+                  e.stopPropagation();
+                  if (idApercu) voirFichier(idApercu, 'BL ' + num);
+                  else if (numsVusPdf[num]) selectionnerLigne(num);
+                  else PM.toast('BL ' + num + ' : pas encore reçu, et non repéré sur le PDF.', 3500);
+                } }, [ICONE_OEIL()])
             ]),
             (l.DateBL || detail) ? el('div', { class: 'pt-bl-detail' }, [(l.DateBL ? 'du ' + l.DateBL + (detail ? ' · ' : '') : '') + detail]) : null,
             acts.length ? el('div', { class: 'pt-bl-acts' }, acts) : null
           ]));
         });
 
-        if (!envoyee) {
-          var champ = el('input', { type: 'text', inputmode: 'numeric', class: 'pt-champ', placeholder: 'Ajouter un n° de BL' });
-          var ajouter = function () {
-            var v = champ.value.trim();
-            if (!v) return;
-            if (f.lignes.some(function (l) { return String(l.NumBL) === v; })) { PM.toast('Ce BL est déjà sur la facture'); return; }
-            saisir({ type: 'pointage.action', factureId: f.ID, numBL: v, action: 'AJOUTER' }, 'BL ' + v + ' ajouté');
-          };
-          champ.addEventListener('keydown', function (e) { if (e.key === 'Enter') ajouter(); });
-          p.appendChild(el('div', { class: 'pt-ajout' }, [champ, el('button', { class: 'pt-mini principal', onclick: ajouter }, ['＋'])]));
-        }
+        // Ajout d'un n° de BL : seulement si aucun BL n'a été lu sur la facture (sinon le menu ⋯ en bas)
+        if (!envoyee && !f.lignes.length) p.appendChild(champAjoutBL(f));
 
         var bas = el('div', { class: 'pt-bas' });
         if (envoyee) {
@@ -860,6 +854,19 @@
               saisir({ type: 'pointage.forcer', factureId: f.ID, commentaire: c }, 'Validation forcée');
             });
           } }, ['Forcer la validation…']));
+          // Ajouter un BL / litige : rangés dans un menu discret pour ne pas encombrer
+          if (f.lignes.length) {
+            var plus = el('details', { class: 'pt-plus' }, [
+              el('summary', {}, ['⋯ Autres actions']),
+              el('div', { class: 'petit', style: 'margin:6px 0 4px' }, ['Ajouter un BL oublié par la lecture de la facture :']),
+              champAjoutBL(f),
+              el('div', { class: 'petit', style: 'margin:8px 0 4px' }, ['Litige sur un BL (le n° doit être sur la facture) :']),
+              el('div', { class: 'pt-plus-litige' }, f.lignes.filter(function (l) { return l.Statut !== 'LITIGE'; }).map(function (l) {
+                return el('button', { class: 'pt-mini danger', onclick: function () { litige(f, String(l.NumBL)); } }, ['⚠ ' + l.NumBL]);
+              }))
+            ]);
+            bas.appendChild(plus);
+          }
         }
         p.appendChild(bas);
 
@@ -872,6 +879,17 @@
         return p;
       }
 
+      function champAjoutBL(f) {
+        var champ = el('input', { type: 'text', inputmode: 'numeric', class: 'pt-champ', placeholder: 'Ajouter un n° de BL' });
+        var ajouter = function () {
+          var v = champ.value.trim();
+          if (!v) return;
+          if (f.lignes.some(function (l) { return String(l.NumBL) === v; })) { PM.toast('Ce BL est déjà sur la facture'); return; }
+          saisir({ type: 'pointage.action', factureId: f.ID, numBL: v, action: 'AJOUTER' }, 'BL ' + v + ' ajouté');
+        };
+        champ.addEventListener('keydown', function (e) { if (e.key === 'Enter') ajouter(); });
+        return el('div', { class: 'pt-ajout' }, [champ, el('button', { class: 'pt-mini principal', onclick: ajouter }, ['＋'])]);
+      }
       function selectionnerLigne(num) {
         selBL = num;
         majVoiles();

@@ -151,7 +151,8 @@
             p.resultat = 'Facture n°' + (j.num || '?') + ' importée · ' + (j.nbBL || 0) + ' BL lu' + ((j.nbBL || 0) > 1 ? 's' : '') + (j.nbBL ? ' · ' + (j.nbOK || 0) + ' déjà pointé' + ((j.nbOK || 0) > 1 ? 's' : '') : '');
           } else if (j.retenus && j.retenus.length) {
             p.etat = 'ok';
-            p.resultat = 'BL ' + j.retenus.join(', ') + (j.differe ? ' enregistré · pointage dans quelques minutes' : ' enregistré et pointé');
+            if (j.reconnu) p.fournisseur = j.reconnu;
+            p.resultat = 'BL ' + j.retenus.join(', ') + (j.reconnu ? ' (reconnu : ' + j.reconnu + ')' : '') + (j.differe ? ' enregistré · pointage dans quelques minutes' : ' enregistré et pointé');
           } else {
             p.etat = 'numero'; p.fichierId = j.fichierId;
             p.resultat = 'N° non lu sur la photo : tape-le';

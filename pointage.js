@@ -1015,7 +1015,7 @@
             }).then(function (r) {
               if (r.retenus && r.retenus.length) {
                 ligne.className = 'pt-resultat ok';
-                ligne.textContent = '✓ BL ' + r.retenus.join(', ') + (r.differe ? ' enregistré · pointage dans quelques minutes' : ' enregistré et pointé');
+                ligne.textContent = '✓ BL ' + r.retenus.join(', ') + (r.reconnu ? ' (reconnu : ' + r.reconnu + ')' : '') + (r.differe ? ' enregistré · pointage dans quelques minutes' : ' enregistré et pointé');
                 rafraichir(false);
               } else {
                 ligne.className = 'pt-resultat ko';

@@ -110,7 +110,7 @@
           c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
           return c.toDataURL('image/jpeg', q);
         }
-        var grand = rendu(2200, 0.85), vignette = rendu(160, 0.7);
+        var grand = rendu(1800, 0.82), vignette = rendu(160, 0.7);
         URL.revokeObjectURL(url);
         ok({ base64: grand.split(',')[1], vignette: vignette });
       };
@@ -130,10 +130,21 @@
         if (i >= aFaire.length) return;
         var p = aFaire[i];
         p.etat = 'envoi'; dessinerListe();
+        // n° d'envoi : si la réponse se perd, le serveur reconnaît la photo (pas de doublon)
+        var dejaTente = !!p.idEnvoi;
+        if (!p.idEnvoi) p.idEnvoi = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
         var corps = p.type === 'facture'
           ? { action: 'pointage.facture', base64: p.base64, mime: 'image/jpeg', nom: 'Photo facture ' + new Date(p.quand).toLocaleString('fr-FR').replace(/[/:]/g, '-') + '.jpg', fournisseur: p.fournisseur }
           : { action: 'pointage.photo', base64: p.base64, mime: 'image/jpeg', nom: 'photo.jpg', fournisseur: p.fournisseur, numImpose: p.num || '' };
-        return appeler(corps, 150000).then(function (j) {
+        corps.idEnvoi = p.idEnvoi;
+        return Photos.garder(p).then(function () {
+          if (!dejaTente) return appeler(corps, 150000);
+          // déjà envoyée une fois : on demande d'abord au serveur s'il l'a reçue
+          return appeler({ action: 'pointage.envoiEtat', idEnvoi: p.idEnvoi }, 20000).then(function (x) {
+            return x.inconnu ? appeler(corps, 150000) : x;
+          });
+        }).then(function (j) {
+          if (j.enCours) { var w = new Error('Lecture en cours sur le serveur'); w.reseau = true; throw w; }
           p.base64 = null; // envoyée : plus besoin de la garder en grand
           if (p.type === 'facture') {
             p.etat = 'ok';

@@ -7,5 +7,5 @@
    ===================================================================== */
 var APPLI_CONFIG = {
   nom: 'Pointage BL',
-  apiUrl: 'https://script.google.com/macros/s/AKfycbx3_TQmRHBFuZVlvm8KVIhon8tqSCUSziw6gKM3sxTYqEv0sGKEqZ8Q19dYBRqM0VF9/exec'
+  apiUrl: ''
 };

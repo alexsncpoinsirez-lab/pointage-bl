@@ -385,3 +385,30 @@ body.futur .pt-accueil-titre { font-family: var(--mono); letter-spacing: .04em; 
 .pt-logo img { box-sizing: border-box; display: block; }
 .pt-logo.avec-image { display: flex; align-items: center; justify-content: center; }
 .pt-logo.avec-image img { min-width: 0; min-height: 0; flex: 1 1 auto; }
+
+/* ===== BL reçus (compteur + liste) et bouton « œil » ===== */
+.pt-kpi.bl-recus .pt-kpi-val { color: rgb(var(--v-photo)); display: flex; align-items: center; gap: 8px; }
+.pt-kpi-oeil { font-size: 14px; opacity: .75; }
+.pt-kpi.bl-recus:hover { border-color: rgb(var(--v-photo)); }
+.pt-oeil { flex: none; display: inline-grid; place-items: center; width: 32px; height: 32px; margin-left: 6px; border-radius: 10px; cursor: pointer;
+  border: 1px solid rgba(var(--v-photo), .55); background: rgba(var(--v-photo), .12); color: rgb(var(--v-photo)); }
+.pt-oeil:hover { background: rgba(var(--v-photo), .25); box-shadow: 0 0 14px rgba(var(--v-photo), .45); }
+.pt-oeil.grand { width: 42px; height: 42px; border-radius: 12px; }
+.pt-oeil-ico { display: inline-flex; }
+.pt-bl-haut { align-items: center; }
+.pt-bl-haut .pt-bl-etat { margin-left: auto; }
+.pt-blr-info { margin: 8px 2px; }
+.pt-blr-liste { display: grid; gap: 8px; max-height: 60vh; overflow: auto; padding-right: 2px; }
+.pt-blr { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 14px; border: 1px solid var(--bord);
+  border-left: 4px solid rgb(var(--v-mail)); background: var(--surface); animation: pt-apparait .3s ease both; animation-delay: calc(var(--i) * 30ms); }
+.pt-blr.photo { border-left-color: rgb(var(--v-photo)); }
+.pt-blr-ico { font-size: 18px; width: 26px; text-align: center; }
+.pt-blr-txt { flex: 1; min-width: 0; }
+.pt-blr-facts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.pt-blr-fact { font: inherit; font-size: 12px; padding: 3px 9px; border-radius: 999px; cursor: pointer; border: 1px solid rgba(var(--v-mail), .6); color: rgb(var(--v-mail)); background: transparent; }
+.pt-blr-attente { font-size: 12px; padding: 3px 9px; border-radius: 999px; border: 1px dashed var(--bord); color: var(--texte-2); }
+.pt-apercu-texte { white-space: pre-wrap; max-width: 820px; width: 100%; background: #fff; color: #111; padding: 16px; border-radius: 8px; font-size: 14px; }
+/* couleurs des statuts aussi dans les feuilles (posées hors de .pt) */
+.pt-fond, .pt-apercu { --v-mail: 34, 170, 110; --v-photo: 14, 150, 170; --v-manuel: 70, 110, 230; --v-litige: 214, 58, 48; --v-manq: 214, 140, 30; }
+body.futur .pt-fond, body.futur .pt-apercu { --v-mail: 34, 227, 161; --v-photo: 56, 225, 255; --v-manuel: 130, 140, 255; --v-litige: 255, 77, 109; --v-manq: 255, 181, 71; }
+.pt-apercu-texte { align-self: start; }

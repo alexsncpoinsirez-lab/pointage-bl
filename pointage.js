@@ -100,6 +100,9 @@
     return el('div', { class: 'pt-anneau', style: 'width:' + taille + 'px;height:' + taille + 'px', html: svg + '<span>' + fait + '/' + total + '</span>' });
   }
 
+  function ICONE_OEIL() {
+    return el('span', { class: 'pt-oeil-ico', html: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 12S5.5 4.5 12 4.5 22.5 12 22.5 12 18.5 19.5 12 19.5 1.5 12 1.5 12z"/><circle cx="12" cy="12" r="3.2"/></svg>' });
+  }
   /* ---------- Fournisseurs : ordre des tuiles, couleur, logo ---------- */
   var ORDRE_FOURN = ['Ackermann', 'Tilly Manitou', 'Haag', 'Mecavista', 'Manutone'];
   var TEINTES = { 'ackermann': 195, 'tilly manitou': 28, 'haag': 145, 'mecavista': 275, 'manutone': 350 };
@@ -454,7 +457,9 @@
           el('div', { class: 'pt-kpis' }, [
             kpi(ouvertes.length, 'Factures à pointer', 'a-pointer', 'ouvertes'),
             kpi(manquants, 'BL manquants', 'manquants', 'ouvertes', true),
-            kpi(completes, 'Complètes', 'completes', 'completes'),
+            el('button', { class: 'pt-kpi bl-recus', title: 'Voir tous les BL reçus', onclick: feuilleBLRecus }, [
+              el('div', { class: 'pt-kpi-val' }, [String((E.blRecus && E.blRecus[FOURN]) || 0), el('span', { class: 'pt-kpi-oeil' }, ['👁'])]),
+              el('div', { class: 'pt-kpi-lib' }, ['BL reçus'])]),
             kpi(envoyees, 'Envoyées · 30 j', 'envoyees', 'envoyees')
           ]),
           el('div', { class: 'pt-actions' }, [
@@ -729,7 +734,7 @@
           var num = String(l.NumBL);
           var acts = [];
           function bouton(txt, cls, fn) { acts.push(el('button', { class: 'pt-mini ' + (cls || ''), onclick: function (e) { e.stopPropagation(); fn(); } }, [txt])); }
-          if (l.FichierId) bouton('👁 Voir', '', function () { voirFichier(l.FichierId, 'BL ' + num); });
+          var idApercu = l.FichierId || (l.MsgId ? 'MSG:' + l.MsgId : '');
           if (!envoyee) {
             if (l.Statut === 'MANQUANT') {
               bouton('✓ Valider', 'principal', function () {
@@ -755,7 +760,9 @@
             onclick: function () { selectionnerLigne(num); } }, [
             el('div', { class: 'pt-bl-haut' }, [
               el('span', { class: 'pt-bl-num' }, ['BL ' + num, horsPdf ? el('small', {}, [' hors PDF']) : null]),
-              el('span', { class: 'pt-bl-etat' }, [(l._attente ? '⏳ ' : '') + (LIB[l.Statut] || l.Statut)])
+              el('span', { class: 'pt-bl-etat' }, [(l._attente ? '⏳ ' : '') + (LIB[l.Statut] || l.Statut)]),
+              idApercu ? el('button', { class: 'pt-oeil', title: 'Voir le BL', 'aria-label': 'Voir le BL ' + num,
+                onclick: function (e) { e.stopPropagation(); voirFichier(idApercu, 'BL ' + num); } }, [ICONE_OEIL()]) : null
             ]),
             (l.DateBL || detail) ? el('div', { class: 'pt-bl-detail' }, [(l.DateBL ? 'du ' + l.DateBL + (detail ? ' · ' : '') : '') + detail]) : null,
             acts.length ? el('div', { class: 'pt-bl-acts' }, acts) : null
@@ -979,6 +986,47 @@
         ]);
       }
 
+      /* ---------------- Tous les BL reçus du fournisseur ---------------- */
+      function feuilleBLRecus() {
+        var cleCache = 'pointage_bls_' + FOURN;
+        var recherche = el('input', { type: 'search', class: 'pt-champ', placeholder: 'Chercher un n° de BL ou de facture…' });
+        var info = el('div', { class: 'petit pt-blr-info' }, ['Chargement…']);
+        var liste = el('div', { class: 'pt-blr-liste' });
+        var donnees = null;
+        var fermerF = feuille('BL reçus · ' + FOURN, [recherche, info, liste]);
+        recherche.addEventListener('input', remplir);
+        function remplir() {
+          if (!donnees) return;
+          var q = recherche.value.trim().toLowerCase();
+          var bls = donnees.filter(function (b) {
+            return !q || (b.num + ' ' + b.detail + ' ' + b.factures.map(function (x) { return x.num; }).join(' ')).toLowerCase().indexOf(q) >= 0;
+          });
+          liste.innerHTML = '';
+          var surFact = donnees.filter(function (b) { return b.factures.length; }).length;
+          info.textContent = donnees.length + ' BL reçu' + (donnees.length > 1 ? 's' : '') + ' · ' + surFact + ' sur une facture · ' + (donnees.length - surFact) + ' en attente de facture';
+          if (!bls.length) { liste.appendChild(el('div', { class: 'vide-msg petit' }, [q ? 'Aucun résultat.' : 'Aucun BL reçu pour l’instant.'])); return; }
+          bls.slice(0, 200).forEach(function (b, i) {
+            var idA = b.fichierId || (b.msgId ? 'MSG:' + b.msgId : '');
+            var fac = b.factures.length ? b.factures.map(function (x) {
+              return el('button', { class: 'pt-blr-fact', onclick: function () { fermerF(); if (facture(x.id)) ouvrir(x.id); } }, ['Facture n°' + x.num]);
+            }) : [el('span', { class: 'pt-blr-attente' }, ['Pas encore sur une facture'])];
+            liste.appendChild(el('div', { class: 'pt-blr ' + (b.source === 'PHOTO' ? 'photo' : 'mail'), style: '--i:' + Math.min(i, 12) }, [
+              el('div', { class: 'pt-blr-ico' }, [b.source === 'PHOTO' ? '📷' : '✉']),
+              el('div', { class: 'pt-blr-txt' }, [
+                el('div', { class: 'pt-bl-num' }, ['BL ' + b.num, el('small', {}, [b.date ? '  · ' + b.date : ''])]),
+                b.detail ? el('div', { class: 'pt-bl-detail' }, [b.detail]) : null,
+                el('div', { class: 'pt-blr-facts' }, fac)
+              ]),
+              idA ? el('button', { class: 'pt-oeil grand', title: 'Voir le BL', onclick: function () { voirFichier(idA, 'BL ' + b.num); } }, [ICONE_OEIL()]) : null
+            ]));
+          });
+        }
+        PM.DB.get(cleCache).then(function (c) { if (c && !donnees) { donnees = c; remplir(); } });
+        appel('pointage.bls', { fournisseur: FOURN }, 45000).then(function (j) {
+          donnees = j.bls || []; PM.DB.set(cleCache, donnees); remplir();
+        })['catch'](function (e) { if (!donnees) info.textContent = 'Impossible de charger : ' + e.message; });
+      }
+
       /* ---------------- Aperçu d'un BL (mail ou photo) ---------------- */
       function voirFichier(id, titre) {
         var zone = el('div', { class: 'pt-apercu-corps' }, [el('div', { class: 'pt-scan' }, [el('div', { class: 'pt-scan-ligne' }), el('span', {}, ['Chargement…'])])]);
@@ -994,6 +1042,11 @@
         }).then(function (d) {
           zone.innerHTML = '';
           if (/^image\//.test(d.mime)) { zone.appendChild(el('img', { src: 'data:' + d.mime + ';base64,' + d.base64, alt: titre })); return; }
+          if (/^text\//.test(d.mime)) {
+            var txt = new TextDecoder('utf-8').decode(b64VersOctets(d.base64));
+            zone.appendChild(el('div', { class: 'pt-apercu-texte' }, [el('div', { class: 'petit', style: 'margin-bottom:8px' }, ['Pas de pièce jointe : texte du mail']), txt]));
+            return;
+          }
           return chargerPdfJs().then(function (lib) { return lib.getDocument({ data: b64VersOctets(d.base64) }).promise; }).then(function (pdf) {
             var n = 0;
             (function page() {

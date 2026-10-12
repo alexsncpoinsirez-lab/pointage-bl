@@ -113,8 +113,10 @@
     return el('span', { class: 'pt-oeil-ico', html: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 12S5.5 4.5 12 4.5 22.5 12 22.5 12 18.5 19.5 12 19.5 1.5 12 1.5 12z"/><circle cx="12" cy="12" r="3.2"/></svg>' });
   }
   /* ---------- Fournisseurs : ordre des tuiles, couleur, logo ---------- */
-  var ORDRE_FOURN = ['Ackermann', 'Tilly Manitou', 'Haag', 'Mecavista', 'Manutone', 'Farminove'];
-  var TEINTES = { 'ackermann': 195, 'tilly manitou': 28, 'haag': 145, 'mecavista': 275, 'manutone': 350, 'farminove': 5 };
+  var ORDRE_FOURN = ['Ackermann', 'Tilly Manitou', 'Haag', 'Mecavista', 'Manutone', 'Farminove', 'Motul'];
+  var TEINTES = { 'ackermann': 195, 'tilly manitou': 28, 'haag': 145, 'mecavista': 275, 'manutone': 350, 'farminove': 5, 'motul': 0 };
+  /* Libellé d'une ligne : « BL » ou « Devis » (devis pointés comme des BL pour les fournisseurs où c'est activé) */
+  function libType(l) { return l && String(l.Type || l.type || '').toUpperCase() === 'DEVIS' ? 'Devis' : 'BL'; }
   function teinte(nom) {
     var k = String(nom || '').toLowerCase();
     if (TEINTES[k] !== undefined) return TEINTES[k];
@@ -305,6 +307,7 @@
         }
         if (!l) return;
         l._attente = true;
+        if (p.action === 'COMMENTER') { l.Commentaire = p.commentaire || ''; return; }
         if (p.action === 'VALIDER') { l.Statut = 'VALIDE_MANUEL'; l.Operateur = p.operateur; l.Commentaire = p.commentaire || ''; l.DateValidation = maintenant; }
         else if (p.action === 'LITIGE') { l.Statut = 'LITIGE'; l.Operateur = p.operateur; l.Commentaire = p.commentaire; l.DateValidation = maintenant; }
         else if (p.action === 'ANNULER') {
@@ -726,6 +729,8 @@
       /* Découpe le tableau en blocs « ligne BL + ses pièces » (même règle que l'appli d'origine) */
       function calculerBlocs(lignes, vp, cfg, report) {
         var reBL = new RegExp(cfg.RegexBLFacture, 'i');
+        var reDevis = null;
+        if (cfg.Devis === 'OUI' && cfg.RegexDevisFacture) { try { reDevis = new RegExp(cfg.RegexDevisFacture, 'i'); } catch (e) { reDevis = null; } }
         var reDeb = cfg.DebutTableau ? new RegExp(cfg.DebutTableau, 'i') : null;
         var reFin = cfg.FinTableau ? new RegExp(cfg.FinTableau, 'i') : null;
         var iDeb = -1, iFin = -1, i;
@@ -740,18 +745,22 @@
         var hs = corps.map(function (l) { return l.h; }).sort(function (a, b) { return a - b; });
         var ecartMax = (hs[Math.floor(hs.length / 2)] || 10) * 3.6;
         var entetes = [];
-        corps.forEach(function (l, k) { var m = reBL.exec(l.texte); if (m && m[1]) entetes.push({ i: k, num: m[1] }); });
+        corps.forEach(function (l, k) {
+          var m = reBL.exec(l.texte);
+          if (m && m[1]) { entetes.push({ i: k, num: m[1] }); return; }
+          if (reDevis) { m = reDevis.exec(l.texte); if (m && m[1]) entetes.push({ i: k, num: m[1], devis: true }); }
+        });
         var res = [];
-        function fermer(num, a, b) {
+        function fermer(num, a, b, devis) {
           var sel = corps.slice(a, b);
           if (!sel.length) return;
           for (var k = 1; k < sel.length; k++) if (sel[k].top - sel[k - 1].bottom > ecartMax) { sel = sel.slice(0, k); break; }
           var top = Math.min.apply(null, sel.map(function (l) { return l.top; })) - 4;
           var bottom = Math.max.apply(null, sel.map(function (l) { return l.bottom; })) + 4;
-          res.push({ num: num, x: x0, y: top, w: x1 - x0, h: bottom - top });
+          res.push({ num: num, x: x0, y: top, w: x1 - x0, h: bottom - top, devis: !!devis });
         }
         if (report && (!entetes.length || entetes[0].i > 0)) fermer(report, 0, entetes.length ? entetes[0].i : corps.length);
-        entetes.forEach(function (e, k) { fermer(e.num, e.i, k + 1 < entetes.length ? entetes[k + 1].i : corps.length); });
+        entetes.forEach(function (e, k) { fermer(e.num, e.i, k + 1 < entetes.length ? entetes[k + 1].i : corps.length, e.devis); });
         return { blocs: res, report: iFin >= 0 ? null : (entetes.length ? entetes[entetes.length - 1].num : report) };
       }
 
@@ -766,7 +775,15 @@
           b.el.style.setProperty('--i', k);
           var txt = !l ? '? NON LU · AJOUTER' : st === 'MANQUANT' ? '◌ À POINTER' : st === 'LITIGE' ? '⛔ LITIGE'
             : st === 'VALIDE_MANUEL' ? '✓ ' + String(l.Operateur || 'VALIDÉ').toUpperCase() : st === 'TROUVE_PHOTO' ? '✓ PHOTO' : '✓ MAIL';
-          b.el.firstChild.textContent = 'BL ' + b.num + ' · ' + txt + (l && l._attente ? ' ⏳' : '');
+          b.el.firstChild.textContent = (l ? libType(l) : (b.devis ? 'Devis' : 'BL')) + ' ' + b.num + ' · ' + txt + (l && l._attente ? ' ⏳' : '');
+          // tampon « LITIGE » en travers du bloc, clignotant, tant que le litige n'est pas résolu
+          var tampon = b.el.querySelector('.pt-tampon');
+          if (st === 'LITIGE' && l) {
+            if (!tampon) { tampon = el('span', { class: 'pt-tampon' }); b.el.appendChild(tampon); }
+            tampon.textContent = 'LITIGE';
+            tampon.title = l.Commentaire || '';
+            tampon.style.fontSize = Math.max(14, Math.min(42, b.h * 0.55)) + 'px';
+          } else if (tampon) tampon.remove();
         });
       }
 
@@ -775,7 +792,8 @@
         if (!f) return;
         if (!f.lignes.some(function (l) { return String(l.NumBL) === num; })) {
           if (f.Statut === 'ENVOYEE') return;
-          if (window.confirm('Le BL ' + num + ' est sur la facture mais n’a pas été lu par le serveur. L’ajouter ?')) {
+          var blocDevis = blocs.some(function (x) { return x.num === num && x.devis; });
+          if (window.confirm('Le ' + (blocDevis ? 'devis' : 'BL') + ' ' + num + ' est sur la facture mais n’a pas été lu par le serveur. L’ajouter ?')) {
             saisir({ type: 'pointage.action', factureId: f.ID, numBL: num, action: 'AJOUTER', commentaire: 'Lu sur la facture' }, 'BL ' + num + ' ajouté');
           }
           return;
@@ -810,25 +828,32 @@
                 if (window.confirm('Retirer le BL ' + num + ' de la facture ?')) saisir({ type: 'pointage.action', factureId: f.ID, numBL: num, action: 'SUPPRIMER' }, 'BL retiré');
               });
             } else if (l.Statut === 'TROUVE_MAIL' || l.Statut === 'TROUVE_PHOTO') {
-              bouton('⚠ Litige', 'danger', function () { litige(f, num); });
               bouton('↺ Dépointer', '', function () { saisir({ type: 'pointage.action', factureId: f.ID, numBL: num, action: 'ANNULER' }, 'BL dépointé'); });
+            } else if (l.Statut === 'LITIGE') {
+              bouton('✓ Résolu', 'principal', function () {
+                demander('Litige résolu : valider le BL ' + num, 'Comment a-t-il été résolu ? (facultatif)', false, function (c) {
+                  saisir({ type: 'pointage.action', factureId: f.ID, numBL: num, action: 'VALIDER', commentaire: 'Litige résolu' + (c ? ' : ' + c : '') }, 'BL ' + num + ' validé');
+                });
+              });
+              bouton('↺ Lever le litige', '', function () { saisir({ type: 'pointage.action', factureId: f.ID, numBL: num, action: 'ANNULER' }, 'Litige levé'); });
             } else {
               bouton('↺ Annuler', '', function () { saisir({ type: 'pointage.action', factureId: f.ID, numBL: num, action: 'ANNULER' }, 'Annulé'); });
             }
+            bouton(l.Commentaire ? '💬 Modifier' : '💬 Note', '', function () { commenter(f, l); });
           }
           var detail = [l.Detail, l.Operateur && l.Statut !== 'TROUVE_MAIL' ? 'par ' + l.Operateur : '', l.DateValidation, l.Commentaire].filter(Boolean).join(' · ');
           var horsPdf = blocs.length && !numsVusPdf[num];
           p.appendChild(el('div', { class: 'pt-bl ' + CLS[l.Statut] + (selBL === num ? ' selection' : ''), 'data-num': num, style: '--i:' + k,
             onclick: function () { selectionnerLigne(num); } }, [
             el('div', { class: 'pt-bl-haut' }, [
-              el('span', { class: 'pt-bl-num' }, ['BL ' + num, horsPdf ? el('small', {}, [' hors PDF']) : null]),
+              el('span', { class: 'pt-bl-num' }, [libType(l) + ' ' + num, horsPdf ? el('small', {}, [' hors PDF']) : null]),
               el('span', { class: 'pt-bl-etat' }, [(l._attente ? '⏳ ' : '') + (LIB[l.Statut] || l.Statut)]),
-              el('button', { class: 'pt-oeil' + (idApercu ? '' : ' facture'), title: idApercu ? 'Voir le BL reçu' : 'Voir ce BL sur la facture', 'aria-label': 'Voir le BL ' + num,
+              el('button', { class: 'pt-oeil' + (idApercu ? '' : ' facture'), title: idApercu ? 'Voir le ' + libType(l) + ' reçu' : 'Voir ce ' + libType(l) + ' sur la facture', 'aria-label': 'Voir le ' + libType(l) + ' ' + num,
                 onclick: function (e) {
                   e.stopPropagation();
-                  if (idApercu) voirFichier(idApercu, 'BL ' + num);
+                  if (idApercu) voirFichier(idApercu, libType(l) + ' ' + num);
                   else if (numsVusPdf[num]) selectionnerLigne(num);
-                  else PM.toast('BL ' + num + ' : pas encore reçu, et non repéré sur le PDF.', 3500);
+                  else PM.toast(libType(l) + ' ' + num + ' : pas encore reçu, et non repéré sur le PDF.', 3500);
                 } }, [ICONE_OEIL()])
             ]),
             (l.DateBL || detail) ? el('div', { class: 'pt-bl-detail' }, [(l.DateBL ? 'du ' + l.DateBL + (detail ? ' · ' : '') : '') + detail]) : null,
@@ -896,6 +921,27 @@
         Array.prototype.forEach.call(racine.querySelectorAll('.pt-bl'), function (x) { x.classList.toggle('selection', x.getAttribute('data-num') === num); });
         var b = blocs.filter(function (x) { return x.num === num; })[0];
         if (b) b.el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      /* Note libre sur un BL (trace écrite) + déclaration de litige depuis la même fenêtre */
+      function commenter(f, l) {
+        var num = String(l.NumBL);
+        var zone = el('textarea', { class: 'pt-champ', rows: '4', placeholder: 'Ex. : pièce manquante, BL non reçu, erreur de quantité…' });
+        zone.value = l.Commentaire || '';
+        var fermerF = feuille('BL ' + num + ' · note', [
+          el('p', { class: 'petit' }, ['La note reste visible sur la carte du BL et dans l’historique. « Déclarer un litige » bloque l’envoi de la facture à la compta jusqu’à résolution.']),
+          zone,
+          el('div', { class: 'pt-feuille-boutons' + (l.Statut !== 'LITIGE' ? ' trois' : '') }, [
+            el('button', { class: 'btn-second', onclick: function () { fermerF(); } }, ['Annuler']),
+            l.Statut !== 'LITIGE' ? el('button', { class: 'btn-second danger', onclick: function () {
+              var c = zone.value.trim(); if (!c) { zone.focus(); PM.toast('Indique la raison du litige'); return; }
+              fermerF(); saisir({ type: 'pointage.action', factureId: f.ID, numBL: num, action: 'LITIGE', commentaire: c }, 'Litige enregistré');
+            } }, ['⛔ Déclarer un litige']) : null,
+            el('button', { class: 'btn-principal', onclick: function () {
+              fermerF(); saisir({ type: 'pointage.action', factureId: f.ID, numBL: num, action: 'COMMENTER', commentaire: zone.value.trim() }, 'Note enregistrée');
+            } }, ['Enregistrer la note'])
+          ])
+        ]);
+        setTimeout(function () { zone.focus(); }, 60);
       }
       function litige(f, num) {
         demander('Litige sur le BL ' + num, 'Raison du litige (obligatoire)', true, function (c) {
@@ -1100,11 +1146,11 @@
             liste.appendChild(el('div', { class: 'pt-blr ' + (b.source === 'PHOTO' ? 'photo' : 'mail'), style: '--i:' + Math.min(i, 12) }, [
               el('div', { class: 'pt-blr-ico' }, [b.source === 'PHOTO' ? '📷' : '✉']),
               el('div', { class: 'pt-blr-txt' }, [
-                el('div', { class: 'pt-bl-num' }, ['BL ' + b.num, el('small', {}, [b.date ? '  · ' + b.date : ''])]),
+                el('div', { class: 'pt-bl-num' }, [libType(b) + ' ' + b.num, el('small', {}, [b.date ? '  · ' + b.date : ''])]),
                 b.detail ? el('div', { class: 'pt-bl-detail' }, [b.detail]) : null,
                 el('div', { class: 'pt-blr-facts' }, fac)
               ]),
-              idA ? el('button', { class: 'pt-oeil grand', title: 'Voir le BL', onclick: function () { voirFichier(idA, 'BL ' + b.num); } }, [ICONE_OEIL()]) : null
+              idA ? el('button', { class: 'pt-oeil grand', title: 'Voir le ' + libType(b), onclick: function () { voirFichier(idA, libType(b) + ' ' + b.num); } }, [ICONE_OEIL()]) : null
             ]));
           });
         }

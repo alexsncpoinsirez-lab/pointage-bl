@@ -93,7 +93,12 @@
     return t === 'reseau' ? 'Pas de réseau' : t === 'delai' ? 'Serveur trop lent' : t === 'occupe' ? 'Serveur occupé' : t === 'page' ? 'Serveur indisponible' : 'Erreur du serveur';
   }
   function apiUrl() { return CFG.apiUrl || Prefs.get('api', ''); }
-  function cle() { return Prefs.get('cle', ''); }
+  function cle() {
+    var c = Prefs.get('cle', '');
+    // Une ancienne version de l'outil Photo (même navigateur) pouvait remplacer la clé par la clé « photo… » :
+    // on l'ignore ici, l'appli redemande alors la configuration.
+    return /^photo/.test(c) ? '' : c;
+  }
 
   var Api = {
     // text/plain : pas de pré-vérification CORS, Apps Script répond directement

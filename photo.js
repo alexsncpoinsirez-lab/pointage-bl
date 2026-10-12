@@ -30,11 +30,12 @@
       var d = JSON.parse(decodeURIComponent(escape(atob(t))));
       if (!d.k) throw 0;
       if (!CFG.apiUrl && d.u) Prefs.set('api', d.u);
-      Prefs.set('cle', d.k);
+      Prefs.set('clePhoto', d.k);   // clé propre à l'outil Photo : ne touche pas à la clé de l'appli complète (même navigateur)
     } catch (e) { setTimeout(function () { toast('Lien de configuration invalide', 4000); }, 300); }
     history.replaceState(null, '', location.pathname);
   })();
-  function cle() { return Prefs.get('cle', ''); }
+  // Clé de l'outil Photo ; à défaut, la clé de l'appli complète (elle autorise aussi les photos)
+  function cle() { return Prefs.get('clePhoto', '') || Prefs.get('cle', ''); }
 
   function el(tag, attrs, enfants) {
     var n = document.createElement(tag);
@@ -247,7 +248,7 @@
       u, k,
       el('button', { class: 'btn', onclick: function () {
         if (u) Prefs.set('api', u.value.trim());
-        Prefs.set('cle', k.value.trim());
+        Prefs.set('clePhoto', k.value.trim());
         appeler({ action: 'ping' }, 20000).then(function () { toast('✓ Connecté'); chargerListe(); dessiner(); envoyerTout(); })
           ['catch'](function (e) { toast('✗ ' + e.message, 4000); });
       } }, ['Enregistrer'])

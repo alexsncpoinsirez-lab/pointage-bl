@@ -113,8 +113,8 @@
     return el('span', { class: 'pt-oeil-ico', html: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 12S5.5 4.5 12 4.5 22.5 12 22.5 12 18.5 19.5 12 19.5 1.5 12 1.5 12z"/><circle cx="12" cy="12" r="3.2"/></svg>' });
   }
   /* ---------- Fournisseurs : ordre des tuiles, couleur, logo ---------- */
-  var ORDRE_FOURN = ['Ackermann', 'Tilly Manitou', 'Haag', 'Mecavista', 'Manutone', 'Farminove', 'Motul'];
-  var TEINTES = { 'ackermann': 195, 'tilly manitou': 28, 'haag': 145, 'mecavista': 275, 'manutone': 350, 'farminove': 5, 'motul': 0 };
+  var ORDRE_FOURN = ['Ackermann', 'Tilly Manitou', 'Haag', 'Mecavista', 'Manutone', 'Farminove', 'Motul', 'Autres fournisseurs'];
+  var TEINTES = { 'ackermann': 195, 'tilly manitou': 28, 'haag': 145, 'mecavista': 275, 'manutone': 350, 'farminove': 5, 'motul': 0, 'autres fournisseurs': 220 };
   /* Libellé d'une ligne : « BL » ou « Devis » (devis pointés comme des BL pour les fournisseurs où c'est activé) */
   function libType(l) { return l && String(l.Type || l.type || '').toUpperCase() === 'DEVIS' ? 'Devis' : 'BL'; }
   function teinte(nom) {
@@ -480,8 +480,33 @@
           ]));
         });
         bloc.appendChild(grille);
+        bloc.appendChild(reglageEnvoi());
         setTimeout(function () { majIndicateurSync(enRafraichissement ? 'sync' : 'ok'); }, 0);
         return bloc;
+      }
+      /* Bascule : envoi automatique à la compta dès que tout est pointé, ou envoi après contrôle des tarifs */
+      function reglageEnvoi() {
+        var auto = !!E.envoiAuto;
+        var bouton = el('button', { class: 'btn-second', onclick: function () {
+          if (!PM.Prefs.get('agent', '')) { choisirOperateur(function () { bouton.click(); }); return; }
+          var versAuto = !auto;
+          if (!window.confirm(versAuto
+            ? 'Les factures partiront toutes seules à la compta dès que tous leurs BL sont pointés. Confirmer ?'
+            : 'Les factures complètes attendront un contrôle des tarifs, puis un clic « Envoyer à la compta ». Confirmer ?')) return;
+          bouton.disabled = true;
+          appel('pointage.envoiAuto', { valeur: versAuto ? 'OUI' : 'NON' }, 30000).then(function (j) {
+            E.envoiAuto = !!j.envoiAuto; PM.toast(E.envoiAuto ? 'Envoi automatique activé' : 'Envoi après contrôle des tarifs'); dessiner();
+          })['catch'](function (e) { bouton.disabled = false; PM.toast('Serveur : ' + e.message, 5000); });
+        } }, [auto ? 'Passer en envoi après contrôle' : 'Passer en envoi automatique']);
+        return el('div', { class: 'pt-reglage-envoi' + (auto ? '' : ' manuel') }, [
+          el('div', {}, [
+            el('b', {}, [auto ? '✉ Envoi automatique à la compta' : '🔎 Contrôle des tarifs avant envoi']),
+            el('div', { class: 'petit' }, [auto
+              ? 'Dès que tous les BL d’une facture sont pointés, elle part toute seule à la compta.'
+              : 'Quand tous les BL sont pointés, la facture reste « Complète » : vérifie les tarifs, puis clique « Envoyer à la compta ».'])
+          ]),
+          bouton
+        ]);
       }
 
       var derniereErreurSync = '';
@@ -871,8 +896,8 @@
         } else if (f.Statut === 'COMPLETE' || f.Statut === 'COMPLETE_FORCEE') {
           bas.appendChild(el('div', { class: 'pt-bandeau-info ok' }, [f._attente || f.lignes.some(function (l) { return l._attente; })
             ? '✓ Tous les BL sont pointés : la facture part à la compta dès l’envoi des saisies.'
-            : '✓ Tous les BL sont pointés.' + (E.envoiAuto ? '' : ' Envoi automatique désactivé.')]));
-          if (!E.envoiAuto) bas.appendChild(el('button', { class: 'btn-principal', onclick: function () { envoyer(f, false); } }, ['✉ Envoyer à la compta']));
+            : '✓ Tous les BL sont pointés.' + (E.envoiAuto ? '' : ' Contrôle les tarifs sur la facture, puis envoie-la à la compta.')]));
+          if (!E.envoiAuto) bas.appendChild(el('button', { class: 'btn-principal', onclick: function () { envoyer(f, false); } }, ['✓ Tarifs contrôlés · Envoyer à la compta']));
         } else {
           bas.appendChild(el('button', { class: 'btn-second', onclick: function () {
             demander('Forcer la validation', 'Pourquoi valider sans tous les BL ? (obligatoire)', true, function (c) {
@@ -949,7 +974,7 @@
         });
       }
       function envoyer(f, renvoi) {
-        if (!window.confirm((renvoi ? 'Renvoyer' : 'Envoyer') + ' la facture n°' + f.NumFacture + ' à ' + (E.emailCompta || 'la compta') + ' ?')) return;
+        if (!window.confirm((renvoi ? 'Renvoyer' : 'Tarifs contrôlés : envoyer') + ' la facture n°' + f.NumFacture + ' à ' + (E.emailCompta || 'la compta') + ' ?')) return;
         saisir({ type: 'pointage.envoyer', factureId: f.ID }, 'Envoi à la compta programmé');
       }
 

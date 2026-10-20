@@ -420,3 +420,17 @@ body.futur .pt-fond, body.futur .pt-apercu { --v-mail: 34, 227, 161; --v-photo: 
 .pt-plus summary::-webkit-details-marker { display: none; }
 .pt-plus-litige { display: flex; flex-wrap: wrap; gap: 6px; }
 .pt-oeil.facture { border-color: rgba(var(--v-manq), .55); background: rgba(var(--v-manq), .12); color: rgb(var(--v-manq)); }
+/* Tampon LITIGE en travers du bloc BL sur la facture */
+.pt-tampon { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%) rotate(-14deg); pointer-events: none;
+  font-family: var(--mono, 'JetBrains Mono', monospace); font-weight: 800; letter-spacing: .25em; color: #e5102a;
+  border: 3px solid #e5102a; border-radius: 8px; padding: 2px 14px; background: rgba(255,255,255,.55); white-space: nowrap;
+  text-shadow: 0 0 6px rgba(229,16,42,.5); animation: pt-clignote 1s steps(2, start) infinite; }
+@keyframes pt-clignote { 50% { opacity: .15; } }
+.pt-voile.litige { outline: 2px solid rgba(var(--v-litige), .8); outline-offset: -1px; }
+.btn-second.danger { border-color: rgba(var(--v-litige), .6); color: rgb(var(--v-litige)); }
+.pt-feuille-boutons.trois { grid-template-columns: 1fr; }
+
+/* Bascule envoi automatique / contrôle des tarifs (page d'accueil) */
+.pt-reglage-envoi { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-top: 22px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--bord, rgba(128,128,128,.35)); background: var(--carte, rgba(128,128,128,.08)); }
+.pt-reglage-envoi.manuel { border-color: rgba(255,170,0,.55); }
+.pt-reglage-envoi .petit { opacity: .8; margin-top: 2px; }

@@ -1046,18 +1046,23 @@
         var choixF = el('select', { class: 'pt-champ' }, (E.fournisseurs || []).map(function (x) {
           return el('option', { selected: (f ? f.Fournisseur === x.Nom : FOURN === x.Nom) ? 'selected' : null }, [x.Nom]);
         }));
-        var num = el('input', { type: 'text', inputmode: 'numeric', class: 'pt-champ', placeholder: 'N° de BL (facultatif, sinon lu sur la photo)', value: numImpose || '' });
+        var num = el('input', { type: 'text', inputmode: 'numeric', class: 'pt-champ', placeholder: 'N° de BL (facultatif : sinon lu sur la photo, puis à confirmer)', value: numImpose || '' });
+        // Tuile « Autres fournisseurs » : nom du fournisseur en clair (facultatif), gardé avec le BL
+        var nomLibre = el('input', { type: 'text', class: 'pt-champ', placeholder: 'Nom du fournisseur (facultatif)', autocomplete: 'organization' });
+        var blocLibre = el('div', { style: 'display:none' }, [nomLibre]);
+        function majLibre() { blocLibre.style.display = /^autres/i.test(choixF.value) ? '' : 'none'; }
+        choixF.addEventListener('change', majLibre); setTimeout(majLibre, 0);
         var res = el('div', { class: 'pt-resultats' });
         var camera = el('input', { type: 'file', accept: 'image/*', capture: 'environment', hidden: 'hidden' });
         var fichiers = el('input', { type: 'file', accept: 'image/*,application/pdf', multiple: 'multiple', hidden: 'hidden' });
         [camera, fichiers].forEach(function (inp) {
           inp.addEventListener('change', function () {
             var l = Array.prototype.slice.call(inp.files || []); inp.value = '';
-            envoyerPhotos(l, choixF.value, num.value.trim(), res);
+            envoyerPhotos(l, choixF.value, num.value.trim(), res, nomLibre.value.trim());
           });
         });
         var contenu = [
-          el('label', { class: 'petit' }, ['Fournisseur']), choixF, num,
+          el('label', { class: 'petit' }, ['Fournisseur']), choixF, blocLibre, num,
           el('div', { class: 'pt-deux' }, [
             el('label', { class: 'btn-principal pt-label-btn' }, [camera, '📷 Prendre la photo']),
             el('label', { class: 'btn-second pt-label-btn' }, [fichiers, '📁 Fichier'])
@@ -1071,7 +1076,7 @@
         var fermerF = feuille('BL papier', contenu);
       }
 
-      function envoyerPhotos(liste, fournisseur, numImpose, res) {
+      function envoyerPhotos(liste, fournisseur, numImpose, res, nomLibre) {
         if (navigator.onLine === false) { PM.toast('Pas de réseau : la photo partira plus tard, garde-la dans la galerie.'); return; }
         (function suivante(i) {
           if (i >= liste.length) return;
@@ -1081,38 +1086,69 @@
           (fic.type === 'application/pdf' ? fichierVersB64(fic).then(function (b) { return { base64: b, mime: 'application/pdf' }; }) : compresser(fic))
             .then(function (d) {
               ligne.textContent = '⏳ ' + fic.name + ' : envoi (' + Math.round(d.base64.length * 0.75 / 1024) + ' Ko) et lecture du n°…';
-              return envoiFiable('pointage.photo', { base64: d.base64, mime: d.mime, nom: fic.name, fournisseur: fournisseur, numImpose: numImpose }, 90000,
+              // Sans n° tapé : lecture seule, l'opérateur confirme ensuite les n° lus (rien n'est enregistré avant)
+              return envoiFiable('pointage.photo', { base64: d.base64, mime: d.mime, nom: fic.name, fournisseur: fournisseur, numImpose: numImpose, verifier: !numImpose, nomLibre: nomLibre || '' }, 90000,
                 function (m) { ligne.textContent = '⏳ ' + fic.name + ' : ' + m; });
             }).then(function (r) {
+              var fournReel = r.fournisseur || fournisseur;
               if (r.retenus && r.retenus.length) {
                 ligne.className = 'pt-resultat ok';
                 ligne.textContent = '✓ BL ' + r.retenus.join(', ') + (r.reconnu ? ' (reconnu : ' + r.reconnu + ')' : '') + (r.differe ? ' enregistré · pointage dans quelques minutes' : ' enregistré et pointé');
                 rafraichir(false);
               } else {
-                ligne.className = 'pt-resultat ko';
-                ligne.innerHTML = '';
-                var c = el('input', { type: 'text', inputmode: 'numeric', class: 'pt-champ', placeholder: 'N° du BL' });
-                var b = el('button', { class: 'pt-mini principal' }, ['✓ Valider']);
-                var valider = function () {
-                  var v = c.value.trim(); if (!v) { c.focus(); return; }
-                  b.disabled = true; b.textContent = '⏳';
-                  appel('pointage.associer', { fichierId: r.fichierId, numBL: v, fournisseur: fournisseur }, 60000).then(function (x) {
-                    ligne.className = 'pt-resultat ok';
-                    ligne.textContent = '✓ BL ' + v + (x.differe ? ' enregistré · pointage dans quelques minutes' : ' enregistré et pointé');
-                    rafraichir(false);
-                  })['catch'](function (e) { b.disabled = false; b.textContent = '✓ Valider'; PM.toast(e.message, 5000); });
-                };
-                b.addEventListener('click', valider);
-                c.addEventListener('keydown', function (e) { if (e.key === 'Enter') valider(); });
-                ligne.appendChild(el('div', {}, ['⚠ ' + fic.name + ' : n° non lu. Tape-le :']));
-                ligne.appendChild(el('div', { class: 'pt-ajout' }, [c, b]));
-                setTimeout(function () { c.focus(); }, 50);
+                confirmerNumeros(ligne, fic.name, r, fournReel, nomLibre);
               }
             })['catch'](function (e) {
               ligne.className = 'pt-resultat ko';
               ligne.textContent = '✗ ' + fic.name + ' : ' + e.message;
             }).then(function () { suivante(i + 1); });
         })(0);
+      }
+
+      /* Après lecture de la photo : les n° lus sont proposés, l'opérateur coche / corrige, puis enregistre.
+         Tant qu'il n'a pas validé, rien n'est enregistré (la photo est gardée « à confirmer »). */
+      function confirmerNumeros(ligne, nomFichier, r, fournisseur, nomLibre) {
+        var lus = (r.detectes || []).slice(0, 12);
+        ligne.className = 'pt-resultat ' + (lus.length ? 'attente' : 'ko');
+        ligne.innerHTML = '';
+        var cases = [];
+        ligne.appendChild(el('div', {}, [lus.length
+          ? '🔎 ' + nomFichier + ' : n° lu' + (lus.length > 1 ? 's' : '') + ' sur la photo' + (r.reconnu ? ' (fournisseur reconnu : ' + r.reconnu + ')' : '') + '. Coche ce qui est bien le n° du BL :'
+          : '⚠ ' + nomFichier + ' : aucun n° lu. Tape-le :']));
+        if (lus.length) {
+          var liste = el('div', { class: 'pt-nums-lus' });
+          lus.forEach(function (n, i) {
+            var c = el('input', { type: 'checkbox', checked: (lus.length === 1 || i === 0) ? 'checked' : null });
+            cases.push({ c: c, n: n });
+            liste.appendChild(el('label', { class: 'pt-num-lu' }, [c, el('b', {}, [n])]));
+          });
+          ligne.appendChild(liste);
+        }
+        var autre = el('input', { type: 'text', inputmode: 'numeric', class: 'pt-champ', placeholder: lus.length ? 'Autre n° (si aucun ne convient)' : 'N° du BL' });
+        var b = el('button', { class: 'pt-mini principal' }, ['✓ C’est bien ce n° · Enregistrer']);
+        var annuler = el('button', { class: 'pt-mini' }, ['✗ Ignorer la photo']);
+        var valider = function () {
+          var choisis = cases.filter(function (x) { return x.c.checked; }).map(function (x) { return x.n; });
+          if (autre.value.trim()) choisis = choisis.concat(autre.value.trim().split(/[,;\s]+/).filter(String));
+          if (!choisis.length) { autre.focus(); PM.toast('Coche un n° ou tape-le'); return; }
+          b.disabled = true; annuler.disabled = true; b.textContent = '⏳';
+          appel('pointage.associer', { fichierId: r.fichierId, numBL: choisis.join(','), fournisseur: fournisseur, nomLibre: nomLibre || '' }, 60000).then(function (x) {
+            ligne.className = 'pt-resultat ok';
+            ligne.textContent = '✓ BL ' + (x.retenus || choisis).join(', ') + (x.differe ? ' enregistré · pointage dans quelques minutes' : ' enregistré et pointé');
+            rafraichir(false);
+          })['catch'](function (e) { b.disabled = false; annuler.disabled = false; b.textContent = '✓ C’est bien ce n° · Enregistrer'; PM.toast(e.message, 5000); });
+        };
+        b.addEventListener('click', valider);
+        autre.addEventListener('keydown', function (e) { if (e.key === 'Enter') valider(); });
+        annuler.addEventListener('click', function () {
+          annuler.disabled = true; b.disabled = true;
+          appel('pointage.photoAnnuler', { fichierId: r.fichierId }, 30000).then(function () {
+            ligne.className = 'pt-resultat'; ligne.textContent = '✗ ' + nomFichier + ' : photo ignorée, rien n’a été enregistré.';
+          })['catch'](function (e) { annuler.disabled = false; b.disabled = false; PM.toast(e.message, 5000); });
+        });
+        ligne.appendChild(el('div', { class: 'pt-ajout' }, [autre]));
+        ligne.appendChild(el('div', { class: 'pt-ajout' }, [b, annuler]));
+        if (!lus.length) setTimeout(function () { autre.focus(); }, 50);
       }
 
       /* ---------------- Dépôt d'une facture ---------------- */
@@ -1175,7 +1211,16 @@
                 b.detail ? el('div', { class: 'pt-bl-detail' }, [b.detail]) : null,
                 el('div', { class: 'pt-blr-facts' }, fac)
               ]),
-              idA ? el('button', { class: 'pt-oeil grand', title: 'Voir le ' + libType(b), onclick: function () { voirFichier(idA, libType(b) + ' ' + b.num); } }, [ICONE_OEIL()]) : null
+              idA ? el('button', { class: 'pt-oeil grand', title: 'Voir le ' + libType(b), onclick: function () { voirFichier(idA, libType(b) + ' ' + b.num); } }, [ICONE_OEIL()]) : null,
+              el('button', { class: 'pt-mini danger pt-blr-retirer', title: 'N° lu par erreur : retirer des BL reçus', onclick: function (e) {
+                e.stopPropagation();
+                if (!window.confirm('Retirer le ' + libType(b) + ' ' + b.num + ' des BL reçus ? (n° lu par erreur)' + (b.factures.length ? '\nLes factures pointées avec lui repasseront « à pointer ».' : ''))) return;
+                e.currentTarget.disabled = true;
+                appel('pointage.blRetirer', { numBL: b.num, fournisseur: FOURN }, 45000).then(function () {
+                  donnees = donnees.filter(function (x) { return x.num !== b.num; }); PM.DB.set(cleCache, donnees); remplir(); rafraichir(false);
+                  PM.toast(libType(b) + ' ' + b.num + ' retiré');
+                })['catch'](function (err) { PM.toast('Serveur : ' + err.message, 5000); remplir(); });
+              } }, ['🗑'])
             ]));
           });
         }

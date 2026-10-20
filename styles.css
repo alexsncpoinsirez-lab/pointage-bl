@@ -434,3 +434,10 @@ body.futur .pt-fond, body.futur .pt-apercu { --v-mail: 34, 227, 161; --v-photo: 
 .pt-reglage-envoi { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-top: 22px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--bord, rgba(128,128,128,.35)); background: var(--carte, rgba(128,128,128,.08)); }
 .pt-reglage-envoi.manuel { border-color: rgba(255,170,0,.55); }
 .pt-reglage-envoi .petit { opacity: .8; margin-top: 2px; }
+
+/* Confirmation des n° lus sur une photo de BL */
+.pt-resultat.attente { border: 1px solid rgba(255,170,0,.55); }
+.pt-nums-lus { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 2px; }
+.pt-num-lu { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 999px; background: var(--surface-1, rgba(128,128,128,.12)); border: 1px solid var(--bord, rgba(128,128,128,.35)); font-size: 14px; cursor: pointer; }
+.pt-num-lu input { width: 18px; height: 18px; margin: 0; }
+.pt-blr-retirer { margin-left: 6px; font-size: 14px; padding: 6px 8px; }

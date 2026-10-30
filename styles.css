@@ -450,3 +450,11 @@ body.futur .pt-fond, body.futur .pt-apercu { --v-mail: 34, 227, 161; --v-photo: 
 .pt-montants { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
 .pt-montant { cursor: pointer; background: var(--surface-2); }
 .pt-montant small { font-weight: 400; opacity: .7; }
+.pt-montant.choisi { outline: 2px solid rgb(var(--v-mail, 40, 140, 90)); background: rgba(var(--v-mail, 40, 140, 90), .15); }
+.pt-deduc-choisies { display: grid; gap: 4px; margin: 6px 0 10px; }
+.pt-deduc-choisie { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center; padding: 6px 8px; border-radius: 8px; background: var(--surface-2); font-size: 13px; }
+.pt-deduc-choisie.total { background: transparent; border-top: 1px solid var(--bord, rgba(128,128,128,.35)); font-size: 14px; }
+.pt-deduc-lignes { margin-top: 2px; opacity: .85; }
+.pt-ia { margin: 8px 0 4px; padding: 6px 10px; border-left: 3px solid rgb(var(--v-mail, 40, 140, 90)); background: var(--surface-2); border-radius: 0 8px 8px 0; }
+.pt-ia.doute { border-left-color: rgb(255, 170, 0); }
+.pt-ia details { margin-top: 4px; } .pt-ia summary { cursor: pointer; }

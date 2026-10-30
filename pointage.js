@@ -919,6 +919,7 @@
           }
         }
         p.appendChild(bas);
+        if (f.RemarquesIA) p.appendChild(el('div', { class: 'petit pt-ia', title: f.ConfianceIA !== '' && f.ConfianceIA !== undefined ? 'Confiance de lecture : ' + Math.round(Number(f.ConfianceIA) * 100) + ' %' : '' }, ['🤖 ' + f.RemarquesIA]));
         p.appendChild(blocDeductions(f));
 
         if (f.historique && f.historique.length) {
@@ -966,8 +967,11 @@
         ]);
         if (ds.length) {
           bloc.appendChild(el('div', { class: 'pt-deduc-liste' }, ds.map(function (d) {
-            return el('div', { class: 'pt-deduc-item' }, ['✉ ' + euros(d.Montant) + ' HT pour ' + d.Operateur + (d.Type === 'COMPLETE' ? ' (facture complète)' : '')
-              + ' · demandé par ' + d.DemandePar + (d.Date ? ' le ' + d.Date : '') + (d.Motif ? ' – ' + d.Motif : '')]);
+            return el('div', { class: 'pt-deduc-item' }, [
+              '✉ ' + euros(d.Montant) + ' HT pour ' + d.Operateur + (d.Type === 'COMPLETE' ? ' (facture complète)' : '')
+              + ' · demandé par ' + d.DemandePar + (d.Date ? ' le ' + d.Date : '') + (d.Motif ? ' – ' + d.Motif : ''),
+              d.Lignes ? el('div', { class: 'petit pt-deduc-lignes' }, String(d.Lignes).split(' ; ').map(function (x) { return el('div', {}, ['• ' + x]); })) : null
+            ]);
           })));
         }
         return bloc;
@@ -983,22 +987,51 @@
         var complete = false;
         var btnComplete = el('button', { class: 'pt-mini' + (ht !== null ? ' principal' : ''), onclick: function () {
           if (ht === null) { PM.toast('Montant HT de la facture non lu : relis les montants ou tape-le.'); return; }
+          choisies = []; majChoisies(); majChips();
           montant.value = ht.toFixed(2).replace('.', ','); complete = true; btnComplete.textContent = '✓ Facture complète (' + euros(ht) + ' HT)';
         } }, ['Facture complète' + (ht !== null ? ' (' + euros(ht) + ' HT)' : '')]);
+        // Lignes sélectionnées sur la facture (désignation + montant) : leur total fait le montant demandé
+        var choisies = [];
+        var listeChoisies = el('div', { class: 'pt-deduc-choisies' });
+        function majChoisies() {
+          listeChoisies.innerHTML = '';
+          if (!choisies.length) { montant.disabled = false; return; }
+          var total = 0;
+          choisies.forEach(function (l, i) {
+            total += l.montant;
+            listeChoisies.appendChild(el('div', { class: 'pt-deduc-choisie' }, [
+              el('span', {}, [l.designation || '(sans désignation)']), el('b', {}, [euros(l.montant)]),
+              el('button', { class: 'pt-mini', title: 'Retirer', onclick: function () { choisies.splice(i, 1); majChoisies(); majChips(); } }, ['✕'])
+            ]));
+          });
+          listeChoisies.appendChild(el('div', { class: 'pt-deduc-choisie total' }, [el('span', {}, ['Total à déduire']), el('b', {}, [euros(total)]), el('span', {})]));
+          montant.value = total.toFixed(2).replace('.', ','); montant.disabled = true; complete = false;
+        }
         montant.addEventListener('input', function () { complete = ht !== null && Math.abs(Number(montant.value.replace(',', '.')) - ht) < 0.005; });
         var motif = el('textarea', { class: 'pt-champ', rows: '2', placeholder: 'Motif (facultatif) : pièce cassée, outil perdu…' });
         var lus = el('div', { class: 'pt-montants' });
+        function majChips() {
+          Array.prototype.forEach.call(lus.querySelectorAll('.pt-montant'), function (b) {
+            var k = b.getAttribute('data-k');
+            b.classList.toggle('choisi', choisies.some(function (l) { return l.k === k; }));
+          });
+        }
         var btnLire = el('button', { class: 'pt-mini', onclick: function () {
           btnLire.disabled = true; btnLire.textContent = '⏳ Lecture de la facture…';
           appel('pointage.montants', { factureId: f.ID }, 90000).then(function (j) {
             btnLire.textContent = 'Montants lus sur la facture :';
             if (j.ht !== null && j.ht !== undefined) { ht = j.ht; f.MontantHT = j.ht; f.MontantTTC = j.ttc; btnComplete.className = 'pt-mini principal'; btnComplete.textContent = 'Facture complète (' + euros(ht) + ' HT)'; }
             lus.innerHTML = '';
-            (j.montants || []).forEach(function (m) {
-              lus.appendChild(el('button', { class: 'pt-chip grand pt-montant', title: m.contexte, onclick: function () { montant.value = m.montant.toFixed(2).replace('.', ','); complete = false; montant.focus(); } },
-                [euros(m.montant), m.contexte ? el('small', {}, [' ' + m.contexte.slice(-28)]) : null]));
+            (j.montants || []).forEach(function (m, idx) {
+              var k = idx + '|' + m.montant;
+              lus.appendChild(el('button', { class: 'pt-chip grand pt-montant', 'data-k': k, title: m.designation || m.contexte || '', onclick: function () {
+                var pos = -1; choisies.forEach(function (l, i) { if (l.k === k) pos = i; });
+                if (pos >= 0) choisies.splice(pos, 1); else choisies.push({ k: k, montant: m.montant, designation: m.designation || m.contexte || '' });
+                majChoisies(); majChips();
+              } }, [euros(m.montant), (m.designation || m.contexte) ? el('small', {}, [' ' + (m.designation || m.contexte).slice(0, 34)]) : null]));
             });
             if (!(j.montants || []).length) lus.textContent = 'Aucun montant lisible.';
+            else lus.insertBefore(el('div', { class: 'petit', style: 'width:100%' }, ['Touche une ou plusieurs lignes : leur total devient le montant à déduire.']), lus.firstChild);
           })['catch'](function (e) { btnLire.disabled = false; btnLire.textContent = '🔎 Lire les montants de la facture'; PM.toast('Serveur : ' + e.message, 5000); });
         } }, ['🔎 Lire les montants de la facture']);
         var envoyerD = el('button', { class: 'btn-principal', onclick: function () {
@@ -1006,9 +1039,11 @@
           var v = Number(montant.value.replace(/\s/g, '').replace(',', '.'));
           if (!qui) { PM.toast('Indique pour qui est la déduction'); return; }
           if (!(v > 0)) { montant.focus(); PM.toast('Montant invalide'); return; }
-          if (!window.confirm('Envoyer à la compta la demande de déduction de ' + euros(v) + ' HT pour ' + qui + (complete ? ' (facture complète)' : '') + ' ?')) return;
+          if (!window.confirm('Envoyer à la compta la demande de déduction de ' + euros(v) + ' HT pour ' + qui + (complete ? ' (facture complète)' : '')
+            + (choisies.length ? '\n' + choisies.map(function (l) { return '• ' + l.designation + ' : ' + euros(l.montant); }).join('\n') : '') + ' ?')) return;
           envoyerD.disabled = true; envoyerD.textContent = '⏳ Envoi…';
-          envoiFiable('pointage.deduction', { factureId: f.ID, montant: v, pour: qui, motif: motif.value.trim(), complete: complete }, 60000, function (m) { envoyerD.textContent = '⏳ ' + m; })
+          envoiFiable('pointage.deduction', { factureId: f.ID, montant: v, pour: qui, motif: motif.value.trim(), complete: complete,
+            lignes: choisies.map(function (l) { return { designation: l.designation, montant: l.montant }; }) }, 60000, function (m) { envoyerD.textContent = '⏳ ' + m; })
             .then(function () { fermerF(); PM.toast('Demande de déduction envoyée à la compta'); rafraichir(false); })
             ['catch'](function (e) { envoyerD.disabled = false; envoyerD.textContent = '✉ Envoyer la demande'; PM.toast('Serveur : ' + e.message, 6000); });
         } }, ['✉ Envoyer la demande']);
@@ -1016,7 +1051,7 @@
           el('p', { class: 'petit' }, ['La demande part à la compta avec la facture jointe : montant HT à retenir sur les heures supplémentaires de la personne indiquée.']),
           el('label', { class: 'petit' }, ['Pour qui']), pour, pourLibre,
           el('label', { class: 'petit' }, ['Montant HT']), el('div', { class: 'pt-ajout' }, [montant, btnComplete]),
-          btnLire, lus,
+          btnLire, lus, listeChoisies,
           el('label', { class: 'petit' }, ['Motif']), motif,
           el('div', { class: 'pt-feuille-boutons' }, [el('button', { class: 'btn-second', onclick: function () { fermerF(); } }, ['Annuler']), envoyerD])
         ]);
@@ -1189,6 +1224,17 @@
         ligne.appendChild(el('div', {}, [lus.length
           ? '🔎 ' + nomFichier + ' : n° lu' + (lus.length > 1 ? 's' : '') + ' sur la photo' + (r.reconnu ? ' (fournisseur reconnu : ' + r.reconnu + ')' : '') + '. Coche ce qui est bien le n° du BL :'
           : '⚠ ' + nomFichier + ' : aucun n° lu. Tape-le :']));
+        if (r.ia) {
+          var TYPES = { BL: 'bon de livraison', FACTURE: 'facture', AVOIR: 'avoir', DEVIS: 'devis', BON_COMMANDE: 'bon de commande', AUTRE: 'document (type incertain)' };
+          var infos = ['🤖 ' + (TYPES[r.ia.type] || r.ia.type) + (r.ia.fournisseur ? ' de ' + r.ia.fournisseur : '') + (r.ia.date ? ' du ' + r.ia.date : '')
+            + (r.ia.commandes && r.ia.commandes.length ? ' · commande ' + r.ia.commandes.join(', ') : '') + (r.ia.devis && r.ia.devis.length ? ' · devis ' + r.ia.devis.join(', ') : '')
+            + (typeof r.ia.confiance === 'number' ? ' · confiance ' + Math.round(r.ia.confiance * 100) + ' %' : '')];
+          var bloc = el('div', { class: 'petit pt-ia' + (r.ia.confiance < 0.75 ? ' doute' : '') }, [el('div', {}, [infos[0]])]);
+          if (r.ia.type !== 'BL' && r.ia.type !== 'DEVIS') bloc.appendChild(el('div', {}, ['⚠ Ce n’est peut-être pas un BL : vérifie avant d’enregistrer.']));
+          if (r.ia.remarques) bloc.appendChild(el('div', {}, [r.ia.remarques]));
+          if (r.ia.lignes && r.ia.lignes.length) bloc.appendChild(el('details', {}, [el('summary', {}, [r.ia.lignes.length + ' ligne' + (r.ia.lignes.length > 1 ? 's' : '') + ' lue' + (r.ia.lignes.length > 1 ? 's' : '')])].concat(r.ia.lignes.map(function (x) { return el('div', {}, ['• ' + x]); }))));
+          ligne.appendChild(bloc);
+        }
         if (lus.length) {
           var liste = el('div', { class: 'pt-nums-lus' });
           lus.forEach(function (n, i) {

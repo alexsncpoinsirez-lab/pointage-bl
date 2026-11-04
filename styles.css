@@ -458,3 +458,6 @@ body.futur .pt-fond, body.futur .pt-apercu { --v-mail: 34, 227, 161; --v-photo: 
 .pt-ia { margin: 8px 0 4px; padding: 6px 10px; border-left: 3px solid rgb(var(--v-mail, 40, 140, 90)); background: var(--surface-2); border-radius: 0 8px 8px 0; }
 .pt-ia.doute { border-left-color: rgb(255, 170, 0); }
 .pt-ia details { margin-top: 4px; } .pt-ia summary { cursor: pointer; }
+.pt-kpi.docs-recus .pt-kpi-val { color: rgb(var(--v-mail)); display: flex; align-items: center; gap: 8px; }
+.pt-kpi.docs-recus:hover { border-color: rgb(var(--v-mail)); }
+.pt-kpi.docs-recus.bc .pt-kpi-val { color: rgb(var(--v-photo, var(--v-mail))); }

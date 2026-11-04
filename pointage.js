@@ -298,6 +298,7 @@
         if (!f) return;
         if (p.type === 'pointage.forcer') { f.Statut = 'COMPLETE_FORCEE'; f._attente = true; return; }
         if (p.type === 'pointage.envoyer') { f._envoi = true; f._attente = true; return; }
+        if (p.type === 'pointage.validerEnvoyer') { if (f.Statut !== 'COMPLETE') f.Statut = 'COMPLETE_FORCEE'; f._envoi = true; f._attente = true; return; }
         var l = f.lignes.filter(function (x) { return String(x.NumBL) === String(p.numBL); })[0];
         var maintenant = new Date().toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(',', '');
         if (p.action === 'AJOUTER') {
@@ -552,6 +553,9 @@
             el('button', { class: 'pt-kpi bl-recus', title: 'Voir tous les BL reçus', onclick: feuilleBLRecus }, [
               el('div', { class: 'pt-kpi-val' }, [String((E.blRecus && E.blRecus[FOURN]) || 0), el('span', { class: 'pt-kpi-oeil' }, ['👁'])]),
               el('div', { class: 'pt-kpi-lib' }, ['BL reçus'])]),
+            el('button', { class: 'pt-kpi docs-recus', title: 'Devis et bons de commande reçus', onclick: feuilleDocs }, [
+              el('div', { class: 'pt-kpi-val' }, [String((E.docsRecus && E.docsRecus[FOURN]) || 0), el('span', { class: 'pt-kpi-oeil' }, ['👁'])]),
+              el('div', { class: 'pt-kpi-lib' }, ['Devis · BC'])]),
             kpi(envoyees, 'Envoyées · 30 j', 'envoyees', 'envoyees')
           ]),
           el('div', { class: 'pt-actions' }, [
@@ -899,11 +903,16 @@
             : '✓ Tous les BL sont pointés.' + (E.envoiAuto ? '' : ' Contrôle les tarifs sur la facture, puis envoie-la à la compta.')]));
           if (!E.envoiAuto) bas.appendChild(el('button', { class: 'btn-principal', onclick: function () { envoyer(f, false); } }, ['✓ Tarifs contrôlés · Envoyer à la compta']));
         } else {
-          bas.appendChild(el('button', { class: 'btn-second', onclick: function () {
-            demander('Forcer la validation', 'Pourquoi valider sans tous les BL ? (obligatoire)', true, function (c) {
-              saisir({ type: 'pointage.forcer', factureId: f.ID, commentaire: c }, 'Validation forcée');
+          // Validation directe : même sans BL (livraison directe, prestation, BL perdu…), avec un commentaire facultatif
+          var manque = f.lignes.filter(function (l) { return ['TROUVE_MAIL', 'TROUVE_PHOTO', 'VALIDE_MANUEL'].indexOf(l.Statut) < 0; }).length;
+          bas.appendChild(el('div', { class: 'petit', style: 'margin:4px 0 6px' }, [
+            !f.lignes.length ? 'Aucun BL sur cette facture : tu peux la valider directement si elle est bonne.'
+              : manque + ' BL non pointé' + (manque > 1 ? 's' : '') + ' : la valider directement les considère comme reçus.']));
+          bas.appendChild(el('button', { class: 'btn-principal', onclick: function () {
+            demander('Valider la facture n°' + f.NumFacture, 'Commentaire (facultatif) : ex. livraison directe, pas de BL, prix vérifiés…', false, function (c) {
+              saisir({ type: 'pointage.validerEnvoyer', factureId: f.ID, commentaire: c }, 'Facture validée : envoi à la compta programmé');
             });
-          } }, ['Forcer la validation…']));
+          } }, ['✓ Valider et envoyer à la compta…']));
           // Ajouter un BL / litige : rangés dans un menu discret pour ne pas encombrer
           if (f.lignes.length) {
             var plus = el('details', { class: 'pt-plus' }, [
@@ -1083,8 +1092,14 @@
         });
       }
       function envoyer(f, renvoi) {
-        if (!window.confirm((renvoi ? 'Renvoyer' : 'Tarifs contrôlés : envoyer') + ' la facture n°' + f.NumFacture + ' à ' + (E.emailCompta || 'la compta') + ' ?')) return;
-        saisir({ type: 'pointage.envoyer', factureId: f.ID }, 'Envoi à la compta programmé');
+        if (renvoi) {
+          if (!window.confirm('Renvoyer la facture n°' + f.NumFacture + ' à ' + (E.emailCompta || 'la compta') + ' ?')) return;
+          saisir({ type: 'pointage.envoyer', factureId: f.ID }, 'Envoi à la compta programmé');
+          return;
+        }
+        demander('Envoyer la facture n°' + f.NumFacture + ' à la compta', 'Commentaire pour la compta (facultatif)', false, function (c) {
+          saisir({ type: 'pointage.envoyer', factureId: f.ID, commentaire: c }, 'Envoi à la compta programmé');
+        });
       }
 
       /* ---------------- Feuilles (fenêtres du bas) ---------------- */
@@ -1347,6 +1362,43 @@
         PM.DB.get(cleCache).then(function (c) { if (c && !donnees) { donnees = c; remplir(); } });
         appel('pointage.bls', { fournisseur: FOURN }, 45000).then(function (j) {
           donnees = j.bls || []; PM.DB.set(cleCache, donnees); remplir();
+        })['catch'](function (e) { if (!donnees) info.textContent = 'Impossible de charger : ' + e.message; });
+      }
+
+      /* ---------------- Devis et bons de commande reçus ---------------- */
+      function feuilleDocs() {
+        var cleCache = 'pointage_docs_' + FOURN;
+        var info = el('div', { class: 'petit pt-blr-info' }, ['Chargement…']);
+        var liste = el('div', { class: 'pt-blr-liste' });
+        var donnees = null;
+        var fermerF = feuille('Devis · bons de commande · ' + FOURN, [info, liste]);
+        function remplir() {
+          if (!donnees) return;
+          liste.innerHTML = '';
+          var nd = donnees.filter(function (d) { return d.type === 'DEVIS'; }).length;
+          info.textContent = nd + ' devis · ' + (donnees.length - nd) + ' bon' + (donnees.length - nd > 1 ? 's' : '') + ' de commande (lus par l’IA, rangés sur le Drive dans Pointage compta / ' + FOURN + ')';
+          if (!donnees.length) { liste.appendChild(el('div', { class: 'vide-msg petit' }, ['Aucun devis ni bon de commande reçu pour l’instant.'])); return; }
+          donnees.forEach(function (d, i) {
+            var idA = d.fichierId || (d.msgId ? 'MSG:' + d.msgId : '');
+            var titre = (d.type === 'DEVIS' ? 'Devis ' : 'BC ') + (d.numero || '(sans n°)');
+            var total = d.lignes.reduce(function (t, l) { return t + (l.montant || 0); }, 0);
+            liste.appendChild(el('div', { class: 'pt-blr mail', style: '--i:' + Math.min(i, 12) }, [
+              el('div', { class: 'pt-blr-ico' }, [d.type === 'DEVIS' ? '📝' : '🛒']),
+              el('div', { class: 'pt-blr-txt' }, [
+                el('div', { class: 'pt-bl-num' }, [titre, el('small', {}, [(d.date ? '  · du ' + d.date : '') + (d.ht !== null ? '  · ' + euros(d.ht) + ' HT' : total ? '  · ' + euros(total) + ' HT' : '')])]),
+                el('div', { class: 'pt-bl-detail' }, [(d.nomLibre ? d.nomLibre + ' · ' : '') + 'reçu le ' + d.recu + (d.commande ? ' · commande ' + d.commande : '') + (d.devis && d.type !== 'DEVIS' ? ' · devis ' + d.devis : '')]),
+                d.lignes.length ? el('details', { class: 'petit' }, [el('summary', {}, [d.lignes.length + ' ligne' + (d.lignes.length > 1 ? 's' : '')])].concat(d.lignes.map(function (l) {
+                  return el('div', {}, ['• ' + (l.ref ? l.ref + ' ' : '') + l.designation + ' × ' + l.qte + (l.unite ? ' ' + l.unite : '') + (l.pu ? ' à ' + euros(l.pu) : '') + (l.montant ? ' = ' + euros(l.montant) : '')]);
+                }))) : null,
+                d.remarques ? el('div', { class: 'petit pt-ia' }, ['🤖 ' + d.remarques]) : null
+              ]),
+              idA ? el('button', { class: 'pt-oeil grand', title: 'Voir le document', onclick: function () { voirFichier(idA, titre); } }, [ICONE_OEIL()]) : null
+            ]));
+          });
+        }
+        PM.DB.get(cleCache).then(function (c) { if (c && !donnees) { donnees = c; remplir(); } });
+        appel('pointage.docs', { fournisseur: FOURN }, 45000).then(function (j) {
+          donnees = j.docs || []; PM.DB.set(cleCache, donnees); remplir();
         })['catch'](function (e) { if (!donnees) info.textContent = 'Impossible de charger : ' + e.message; });
       }
 

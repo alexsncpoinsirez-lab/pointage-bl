@@ -553,9 +553,12 @@
             el('button', { class: 'pt-kpi bl-recus', title: 'Voir tous les BL reçus', onclick: feuilleBLRecus }, [
               el('div', { class: 'pt-kpi-val' }, [String((E.blRecus && E.blRecus[FOURN]) || 0), el('span', { class: 'pt-kpi-oeil' }, ['👁'])]),
               el('div', { class: 'pt-kpi-lib' }, ['BL reçus'])]),
-            el('button', { class: 'pt-kpi docs-recus', title: 'Devis et bons de commande reçus', onclick: feuilleDocs }, [
+            el('button', { class: 'pt-kpi docs-recus', title: 'Devis reçus', onclick: function () { feuilleDocs('DEVIS'); } }, [
               el('div', { class: 'pt-kpi-val' }, [String((E.docsRecus && E.docsRecus[FOURN]) || 0), el('span', { class: 'pt-kpi-oeil' }, ['👁'])]),
-              el('div', { class: 'pt-kpi-lib' }, ['Devis · BC'])]),
+              el('div', { class: 'pt-kpi-lib' }, ['Devis'])]),
+            el('button', { class: 'pt-kpi docs-recus bc', title: 'Bons de commande', onclick: function () { feuilleDocs('BC'); } }, [
+              el('div', { class: 'pt-kpi-val' }, [String((E.bcRecus && E.bcRecus[FOURN]) || 0), el('span', { class: 'pt-kpi-oeil' }, ['👁'])]),
+              el('div', { class: 'pt-kpi-lib' }, ['Bons de commande'])]),
             kpi(envoyees, 'Envoyées · 30 j', 'envoyees', 'envoyees')
           ]),
           el('div', { class: 'pt-actions' }, [
@@ -927,6 +930,15 @@
             bas.appendChild(plus);
           }
         }
+        // Suppression (mauvais fournisseur, doublon, lecture fausse) : discret, tout en bas
+        bas.appendChild(el('div', { style: 'margin-top:14px;text-align:right;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap' }, [
+          !envoyee ? el('button', { class: 'pt-mini', title: 'Autre fournisseur ou autre catégorie (BL, devis, bon de commande)', onclick: function () {
+            feuilleDeplacer({ genre: 'FACTURE', id: f.ID, fournisseur: f.Fournisseur, type: 'FACTURE', numero: String(f.NumFacture), libelle: 'facture n°' + f.NumFacture }, function () {
+              E.factures = E.factures.filter(function (x) { return x.ID !== f.ID; });
+              location.hash = 'four/' + encodeURIComponent(f.Fournisseur); dessiner(); rafraichir(false);
+            });
+          } }, ['↪ Déplacer…']) : null,
+          el('button', { class: 'pt-mini danger', title: 'Retirer cette facture de l’appli', onclick: function () { supprimerFacture(f); } }, ['🗑 Supprimer cette facture…'])]));
         p.appendChild(bas);
         if (f.RemarquesIA) p.appendChild(el('div', { class: 'petit pt-ia', title: f.ConfianceIA !== '' && f.ConfianceIA !== undefined ? 'Confiance de lecture : ' + Math.round(Number(f.ConfianceIA) * 100) + ' %' : '' }, ['🤖 ' + f.RemarquesIA]));
         p.appendChild(blocDeductions(f));
@@ -1100,6 +1112,64 @@
         demander('Envoyer la facture n°' + f.NumFacture + ' à la compta', 'Commentaire pour la compta (facultatif)', false, function (c) {
           saisir({ type: 'pointage.envoyer', factureId: f.ID, commentaire: c }, 'Envoi à la compta programmé');
         });
+      }
+
+      function supprimerFacture(f) {
+        var zone = el('textarea', { class: 'pt-champ', rows: '2', placeholder: 'Pourquoi ? (facultatif : mauvais fournisseur, doublon, n° faux…)' });
+        var relire = el('input', { type: 'checkbox', id: 'pt-relire' });
+        var fermerF = feuille('Supprimer la facture n°' + f.NumFacture, [
+          el('div', { class: 'petit', style: 'margin-bottom:8px' }, ['La facture, ses BL et ses lignes sont retirés de l’appli ; le fichier part à la corbeille du Drive (récupérable 30 jours).' + (f.Statut === 'ENVOYEE' ? ' Elle a déjà été envoyée à la compta : la supprimer ici n’annule pas cet envoi.' : '')]),
+          zone,
+          f.Source && String(f.Source).indexOf('MAIL:') === 0 ? el('label', { class: 'petit', style: 'display:flex;gap:8px;align-items:center;margin:8px 0' }, [relire, 'Relire le mail d’origine au prochain scan (le mail revient en boîte de réception)']) : null,
+          el('div', { class: 'pt-feuille-boutons' }, [
+            el('button', { class: 'btn-second', onclick: function () { fermerF(); } }, ['Annuler']),
+            el('button', { class: 'btn-principal danger', onclick: function () {
+              fermerF();
+              PM.toast('Suppression…');
+              appel('pointage.factureSupprimer', { factureId: f.ID, motif: zone.value.trim(), relire: !!relire.checked }, 45000).then(function () {
+                E.factures = E.factures.filter(function (x) { return x.ID !== f.ID; });
+                PM.toast('Facture n°' + f.NumFacture + ' supprimée');
+                location.hash = 'four/' + encodeURIComponent(f.Fournisseur);
+                dessiner();
+              })['catch'](function (e) { PM.toast('Impossible : ' + e.message, 4000); });
+            } }, ['🗑 Supprimer'])
+          ])
+        ]);
+      }
+
+      /* ---------------- Déplacer une pièce : autre fournisseur et/ou autre catégorie ---------------- */
+      var LIB_TYPES = { FACTURE: 'Facture', BL: 'Bon de livraison', DEVIS: 'Devis', BC: 'Bon de commande' };
+      function feuilleDeplacer(piece, apres) {
+        var noms = listeFournisseurs().map(function (x) { return x.nom; });
+        var selF = el('select', { class: 'pt-champ' }, noms.map(function (n) { return el('option', { value: n, selected: n === piece.fournisseur ? 'selected' : null }, [n]); }));
+        var selT = el('select', { class: 'pt-champ' }, Object.keys(LIB_TYPES).map(function (t) { return el('option', { value: t, selected: t === piece.type ? 'selected' : null }, [LIB_TYPES[t]]); }));
+        var num = el('input', { type: 'text', class: 'pt-champ', value: piece.numero || '', placeholder: 'N° de la pièce' });
+        var aide = el('div', { class: 'petit', style: 'margin:6px 0 10px' });
+        var ligneNum = el('div', {}, [el('label', { class: 'petit' }, ['N° (BL, devis ou bon de commande)']), num]);
+        function maj() {
+          var t = selT.value;
+          ligneNum.style.display = t === 'FACTURE' ? 'none' : '';
+          aide.textContent = t === 'FACTURE' ? 'La pièce sera relue comme une facture (n°, BL, lignes) chez ' + selF.value + '.'
+            : t === 'BL' ? 'Le BL rejoint « BL reçus » de ' + selF.value + ' et pointera ses factures.'
+            : 'Le document rejoint les ' + (t === 'DEVIS' ? 'devis' : 'bons de commande') + ' de ' + selF.value + '.';
+        }
+        selT.addEventListener('change', maj); selF.addEventListener('change', maj); maj();
+        var fermerF = feuille('Déplacer : ' + piece.libelle, [
+          el('label', { class: 'petit' }, ['Fournisseur']), selF,
+          el('label', { class: 'petit', style: 'display:block;margin-top:8px' }, ['Catégorie']), selT,
+          ligneNum, aide,
+          el('div', { class: 'pt-feuille-boutons' }, [
+            el('button', { class: 'btn-second', onclick: function () { fermerF(); } }, ['Annuler']),
+            el('button', { class: 'btn-principal', onclick: function (e) {
+              if (selF.value === piece.fournisseur && selT.value === piece.type) { PM.toast('Choisis un autre fournisseur ou une autre catégorie'); return; }
+              if (selT.value !== 'FACTURE' && !num.value.trim()) { PM.toast('Indique le n°'); num.focus(); return; }
+              e.currentTarget.disabled = true; PM.toast('Déplacement…');
+              appel('pointage.deplacer', { genre: piece.genre, id: piece.id, fournisseurActuel: piece.fournisseurActuel || piece.fournisseur, fournisseur: selF.value, type: selT.value, numero: num.value.trim() }, 90000).then(function () {
+                fermerF(); PM.toast(piece.libelle + ' → ' + selF.value + ' / ' + LIB_TYPES[selT.value]); if (apres) apres();
+              })['catch'](function (err) { e.currentTarget.disabled = false; PM.toast('Impossible : ' + err.message, 5000); });
+            } }, ['↪ Déplacer'])
+          ])
+        ]);
       }
 
       /* ---------------- Feuilles (fenêtres du bas) ---------------- */
@@ -1347,6 +1417,12 @@
                 el('div', { class: 'pt-blr-facts' }, fac)
               ]),
               idA ? el('button', { class: 'pt-oeil grand', title: 'Voir le ' + libType(b), onclick: function () { voirFichier(idA, libType(b) + ' ' + b.num); } }, [ICONE_OEIL()]) : null,
+              el('button', { class: 'pt-mini', title: 'Autre fournisseur ou autre catégorie', onclick: function (e) {
+                e.stopPropagation();
+                feuilleDeplacer({ genre: 'BL', id: b.num, fournisseurActuel: FOURN, fournisseur: FOURN, type: 'BL', numero: b.num, libelle: libType(b) + ' ' + b.num }, function () {
+                  donnees = donnees.filter(function (x) { return x.num !== b.num; }); PM.DB.set(cleCache, donnees); remplir(); rafraichir(false);
+                });
+              } }, ['↪']),
               el('button', { class: 'pt-mini danger pt-blr-retirer', title: 'N° lu par erreur : retirer des BL reçus', onclick: function (e) {
                 e.stopPropagation();
                 if (!window.confirm('Retirer le ' + libType(b) + ' ' + b.num + ' des BL reçus ? (n° lu par erreur)' + (b.factures.length ? '\nLes factures pointées avec lui repasseront « à pointer ».' : ''))) return;
@@ -1366,19 +1442,21 @@
       }
 
       /* ---------------- Devis et bons de commande reçus ---------------- */
-      function feuilleDocs() {
+      function feuilleDocs(type) {
+        type = type || 'DEVIS';
+        var estBC = type === 'BC';
         var cleCache = 'pointage_docs_' + FOURN;
         var info = el('div', { class: 'petit pt-blr-info' }, ['Chargement…']);
         var liste = el('div', { class: 'pt-blr-liste' });
         var donnees = null;
-        var fermerF = feuille('Devis · bons de commande · ' + FOURN, [info, liste]);
+        var fermerF = feuille((estBC ? 'Bons de commande · ' : 'Devis · ') + FOURN, [info, liste]);
         function remplir() {
           if (!donnees) return;
           liste.innerHTML = '';
-          var nd = donnees.filter(function (d) { return d.type === 'DEVIS'; }).length;
-          info.textContent = nd + ' devis · ' + (donnees.length - nd) + ' bon' + (donnees.length - nd > 1 ? 's' : '') + ' de commande (lus par l’IA, rangés sur le Drive dans Pointage compta / ' + FOURN + ')';
-          if (!donnees.length) { liste.appendChild(el('div', { class: 'vide-msg petit' }, ['Aucun devis ni bon de commande reçu pour l’instant.'])); return; }
-          donnees.forEach(function (d, i) {
+          var vus = donnees.filter(function (d) { return d.type === type; });
+          info.textContent = vus.length + (estBC ? ' bon' + (vus.length > 1 ? 's' : '') + ' de commande' : ' devis') + ' (lus par l’IA, rangés sur le Drive dans Pointage compta / ' + FOURN + ' / ' + (estBC ? 'BC' : 'Devis') + ')';
+          if (!vus.length) { liste.appendChild(el('div', { class: 'vide-msg petit' }, [estBC ? 'Aucun bon de commande pour l’instant.' : 'Aucun devis reçu pour l’instant.'])); return; }
+          vus.forEach(function (d, i) {
             var idA = d.fichierId || (d.msgId ? 'MSG:' + d.msgId : '');
             var titre = (d.type === 'DEVIS' ? 'Devis ' : 'BC ') + (d.numero || '(sans n°)');
             var total = d.lignes.reduce(function (t, l) { return t + (l.montant || 0); }, 0);
@@ -1392,7 +1470,12 @@
                 }))) : null,
                 d.remarques ? el('div', { class: 'petit pt-ia' }, ['🤖 ' + d.remarques]) : null
               ]),
-              idA ? el('button', { class: 'pt-oeil grand', title: 'Voir le document', onclick: function () { voirFichier(idA, titre); } }, [ICONE_OEIL()]) : null
+              idA ? el('button', { class: 'pt-oeil grand', title: 'Voir le document', onclick: function () { voirFichier(idA, titre); } }, [ICONE_OEIL()]) : null,
+              el('button', { class: 'pt-mini', title: 'Autre fournisseur ou autre catégorie', onclick: function () {
+                feuilleDeplacer({ genre: 'DOC', id: d.id, fournisseur: FOURN, type: d.type, numero: d.numero || '', libelle: titre }, function () {
+                  donnees = donnees.filter(function (x) { return x.id !== d.id; }); PM.DB.set(cleCache, donnees); remplir(); rafraichir(false);
+                });
+              } }, ['↪'])
             ]));
           });
         }

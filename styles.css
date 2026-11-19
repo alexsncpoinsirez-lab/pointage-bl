@@ -232,6 +232,21 @@ textarea.pt-champ { padding: 10px 12px; resize: vertical; }
 .pt-bl.manuel { border-left-color: rgb(var(--v-manuel)); }
 .pt-bl.litige { border-left-color: rgb(var(--v-litige)); }
 .pt-bl.selection { box-shadow: 0 0 0 2px var(--neon, var(--ok)); }
+.pt-panneau { padding: 4px 8px 4px 6px; }
+.pt-bl { position: relative; transform-origin: center; }
+.pt-bl.selection { z-index: 2; transform: scale(1.02); box-shadow: 0 0 0 2px var(--neon, var(--ok)), 0 10px 24px -10px rgba(0,0,0,.45); }
+.pt-bl.sans-entree { animation: none; }
+/* BL cliqué sur la facture : sort de la liste avec un petit battement */
+.pt-bl.selection.pop { animation: ptSortie 1.1s cubic-bezier(.3,1.4,.5,1) both; }
+@keyframes ptSortie {
+  0%   { transform: scale(1);    box-shadow: 0 0 0 0 var(--neon, var(--ok)); }
+  22%  { transform: scale(1.07) translateX(-4px); box-shadow: 0 0 0 3px var(--neon, var(--ok)), 0 16px 34px -10px rgba(0,0,0,.55); }
+  38%  { transform: scale(1.01); }
+  54%  { transform: scale(1.055) translateX(-3px); box-shadow: 0 0 0 3px var(--neon, var(--ok)), 0 0 28px -4px var(--neon, var(--ok)); }
+  72%  { transform: scale(1.015); }
+  100% { transform: scale(1.02); box-shadow: 0 0 0 2px var(--neon, var(--ok)), 0 10px 24px -10px rgba(0,0,0,.45); }
+}
+@media (prefers-reduced-motion: reduce) { .pt-bl.selection.pop { animation: none; } }
 .pt-bl-haut { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
 .pt-bl-num { font-weight: 800; font-variant-numeric: tabular-nums; font-family: var(--mono, inherit); }
 .pt-bl-num small { font-weight: 500; color: var(--texte-2); font-family: inherit; }

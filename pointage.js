@@ -834,7 +834,27 @@
         majVoiles();
         Array.prototype.forEach.call(racine.querySelectorAll('.pt-bl'), function (x) { x.classList.toggle('selection', x.getAttribute('data-num') === num); });
         var cible = racine.querySelector('.pt-bl[data-num="' + num + '"]');
-        if (cible) cible.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        if (cible) mettreEnAvant(cible);
+      }
+
+      /* Carte du BL cliqué sur la facture : amenée au milieu de la colonne de droite,
+         puis elle « sort » de la liste avec un petit battement */
+      function mettreEnAvant(cible) {
+        var p = cible.closest('.pt-panneau');
+        if (p && p.scrollHeight > p.clientHeight + 4) {
+          // la colonne défile toute seule : on la fait défiler elle, pas la page (la facture ne bouge pas)
+          var haut = cible.getBoundingClientRect().top - p.getBoundingClientRect().top + p.scrollTop;
+          p.scrollTo({ top: Math.max(0, haut - (p.clientHeight - cible.offsetHeight) / 2), behavior: 'smooth' });
+        } else {
+          cible.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        // l'animation d'arrivée des cartes ne doit pas se rejouer quand on change de BL
+        Array.prototype.forEach.call(racine.querySelectorAll('.pt-bl'), function (x) { x.classList.add('sans-entree'); });
+        cible.classList.remove('pop');
+        void cible.offsetWidth;            // relance l'animation même si on reclique le même BL
+        cible.classList.add('pop');
+        clearTimeout(cible._pop);
+        cible._pop = setTimeout(function () { cible.classList.remove('pop'); }, 1300);
       }
 
       /* ---------------- Panneau des BL ---------------- */

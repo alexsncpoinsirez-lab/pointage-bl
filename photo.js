@@ -136,7 +136,8 @@
         if (!p.idEnvoi) p.idEnvoi = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
         var corps = p.type === 'facture'
           ? { action: 'pointage.facture', base64: p.base64, mime: 'image/jpeg', nom: 'Photo facture ' + new Date(p.quand).toLocaleString('fr-FR').replace(/[/:]/g, '-') + '.jpg', fournisseur: p.fournisseur }
-          : { action: 'pointage.photo', base64: p.base64, mime: 'image/jpeg', nom: 'photo.jpg', fournisseur: p.fournisseur, numImpose: p.num || '' };
+          // verifier : le serveur lit les n° mais n'enregistre rien tant que la personne n'a pas confirmé
+          : { action: 'pointage.photo', base64: p.base64, mime: 'image/jpeg', nom: 'photo.jpg', fournisseur: p.fournisseur, numImpose: p.num || '', verifier: !p.num, nomLibre: p.nomLibre || '' };
         corps.idEnvoi = p.idEnvoi;
         return Photos.garder(p).then(function () {
           if (!dejaTente) return appeler(corps, 150000);
@@ -155,8 +156,12 @@
             if (j.reconnu) p.fournisseur = j.reconnu;
             p.resultat = 'BL ' + j.retenus.join(', ') + (j.reconnu ? ' (reconnu : ' + j.reconnu + ')' : '') + (j.differe ? ' enregistré · pointage dans quelques minutes' : ' enregistré et pointé');
           } else {
+            // n° lus mais pas encore enregistrés : la personne choisit le bon (ou le tape)
             p.etat = 'numero'; p.fichierId = j.fichierId;
-            p.resultat = 'N° non lu sur la photo : tape-le';
+            if (j.fournisseur) p.fournisseur = j.fournisseur;
+            p.detectes = (j.detectes || []).slice(0, 6);
+            p.alerteIA = (j.ia && j.ia.type && j.ia.type !== 'BL') ? 'Attention : ça ressemble à ' + (TYPES_IA[j.ia.type] || j.ia.type) + ', pas à un BL' : '';
+            p.resultat = p.detectes.length ? 'Coche le bon n° puis Enregistrer' + (j.reconnu ? ' (reconnu : ' + j.reconnu + ')' : '') : 'N° non lu sur la photo : tape-le';
           }
           return Photos.garder(p);
         }, function (e) {
@@ -168,14 +173,23 @@
     })['catch'](function () {}).then(function () { envoiEnCours = false; dessinerListe(); });
   }
 
+  var TYPES_IA = { FACTURE: 'une facture', AVOIR: 'un avoir', DEVIS: 'un devis', BC: 'un bon de commande', AUTRE: 'autre chose' };
+
   function associer(p, num, bouton) {
     bouton.disabled = true; bouton.textContent = '⏳';
-    appeler({ action: 'pointage.associer', fichierId: p.fichierId, numBL: num, fournisseur: p.fournisseur }, 60000).then(function (j) {
-      p.etat = 'ok'; p.num = num;
+    appeler({ action: 'pointage.associer', fichierId: p.fichierId, numBL: num, fournisseur: p.fournisseur, nomLibre: p.nomLibre || '' }, 60000).then(function (j) {
+      p.etat = 'ok'; p.num = num; p.detectes = null; p.alerteIA = '';
       p.resultat = 'BL ' + num + (j.differe ? ' enregistré · pointage dans quelques minutes' : ' enregistré et pointé');
       return Photos.garder(p);
-    }, function (e) { bouton.disabled = false; bouton.textContent = 'Valider'; toast(e.message, 4000); })
+    }, function (e) { bouton.disabled = false; bouton.textContent = '✓ Enregistrer'; toast(e.message, 4000); })
       .then(dessinerListe);
+  }
+
+  // Photo ratée / pas un BL : mise à la corbeille sur le serveur, rien n'est enregistré
+  function ignorer(p, bouton) {
+    bouton.disabled = true;
+    appeler({ action: 'pointage.photoAnnuler', fichierId: p.fichierId }, 30000)['catch'](function () {})
+      .then(function () { return Photos.oublier(p.id); }).then(function () { toast('Photo ignorée'); dessinerListe(); });
   }
 
   /* ---------- écran ---------- */
@@ -205,11 +219,15 @@
     var choixF = el('select', { 'aria-label': 'Fournisseur' }, (fournisseurs.length ? fournisseurs : ['Ackermann']).map(function (f) {
       return el('option', { selected: Prefs.get('photo_fourn', '') === f ? 'selected' : null }, [f]);
     }));
-    choixF.addEventListener('change', function () { Prefs.set('photo_fourn', choixF.value); });
     var num = el('input', { type: 'text', inputmode: 'numeric', placeholder: 'N° de BL (facultatif : lu sur la photo)', id: 'num' });
-    vue.appendChild(el('div', { class: 'champs' }, [choixF, mode === 'bl' ? num : null]));
+    // « Autres fournisseurs » : nom tapé, gardé avec le BL (s'il est connu, le BL est rangé chez lui)
+    var nomLibre = el('input', { type: 'text', placeholder: 'Nom du fournisseur (facultatif)', autocomplete: 'off' });
+    function majNomLibre() { nomLibre.style.display = (mode === 'bl' && choixF.value === 'Autres fournisseurs') ? '' : 'none'; }
+    choixF.addEventListener('change', function () { Prefs.set('photo_fourn', choixF.value); majNomLibre(); });
+    majNomLibre();
+    vue.appendChild(el('div', { class: 'champs' }, [choixF, mode === 'bl' ? nomLibre : null, mode === 'bl' ? num : null]));
     vue.appendChild(el('p', { class: 'aide' }, [mode === 'bl'
-      ? '› Cadre le BL bien à plat, n° lisible. Il est pointé tout seul sur sa facture.'
+      ? '› Cadre le BL bien à plat, n° lisible. Tu confirmes le n° lu, puis il est pointé tout seul sur sa facture.'
       : '› Une photo = une facture (1 page). Ses BL sont lus et cherchés tout de suite.']));
 
     var camera = el('input', { type: 'file', accept: 'image/*', capture: 'environment', id: 'camera' });
@@ -217,7 +235,7 @@
     [camera, galerie].forEach(function (inp) {
       inp.addEventListener('change', function () {
         var fs = Array.prototype.slice.call(inp.files || []); inp.value = '';
-        prendre(fs, choixF.value, mode === 'bl' ? num.value.trim() : '');
+        prendre(fs, choixF.value, mode === 'bl' ? num.value.trim() : '', nomLibre.style.display === 'none' ? '' : nomLibre.value.trim());
         num.value = '';
       });
     });
@@ -268,11 +286,24 @@
           : (p.etat === 'ok' ? '✓ ' : p.etat === 'erreur' ? '✗ ' : '⚠ ') + (p.resultat || '');
         var enfants = [el('div', { class: 'l1' }, [titre]), el('div', { class: 'l2' }, [new Date(p.quand).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) + ' · ' + statut])];
         if (p.etat === 'numero') {
-          var c = el('input', { type: 'text', inputmode: 'numeric', placeholder: 'N° du BL' });
-          var b = el('button', { class: 'btn' }, ['Valider']);
-          b.addEventListener('click', function () { if (c.value.trim()) associer(p, c.value.trim(), b); else c.focus(); });
-          c.addEventListener('keydown', function (e) { if (e.key === 'Enter' && c.value.trim()) associer(p, c.value.trim(), b); });
+          if (p.alerteIA) enfants.push(el('div', { class: 'alerte' }, ['⚠ ' + p.alerteIA]));
+          // n° lus sur la photo : le plus probable coché ; taper un n° décoche les propositions
+          var groupe = 'n' + p.id, choix = [];
+          (p.detectes || []).forEach(function (n, i) {
+            var r = el('input', { type: 'radio', name: groupe, value: n, checked: i === 0 ? 'checked' : null });
+            choix.push(r);
+            enfants.push(el('label', { class: 'propo' }, [r, n]));
+          });
+          var c = el('input', { type: 'text', inputmode: 'numeric', placeholder: p.detectes && p.detectes.length ? 'Autre n° (si aucun ne va)' : 'N° du BL' });
+          c.addEventListener('input', function () { if (c.value.trim()) choix.forEach(function (r) { r.checked = false; }); });
+          var b = el('button', { class: 'btn' }, ['✓ Enregistrer']);
+          var valeur = function () { if (c.value.trim()) return c.value.trim(); var r = choix.filter(function (x) { return x.checked; })[0]; return r ? r.value : ''; };
+          b.addEventListener('click', function () { var v = valeur(); if (v) associer(p, v, b); else c.focus(); });
+          c.addEventListener('keydown', function (e) { if (e.key === 'Enter' && valeur()) associer(p, valeur(), b); });
           enfants.push(el('div', { class: 'saisie' }, [c, b]));
+          var ig = el('button', { class: 'btn second' }, ['✗ Ignorer la photo']);
+          ig.addEventListener('click', function () { ignorer(p, ig); });
+          enfants.push(el('div', { class: 'saisie' }, [ig]));
         }
         if (p.etat === 'erreur') {
           enfants.push(el('div', { class: 'saisie' }, [
@@ -285,7 +316,7 @@
     });
   }
 
-  function prendre(fichiers, fournisseur, num) {
+  function prendre(fichiers, fournisseur, num, nomLibre) {
     Prefs.set('photo_fourn', fournisseur);
     if (!Prefs.get('agent', '')) {
       var n = window.prompt('Ton prénom (noté sur chaque photo) :', '');
@@ -297,7 +328,7 @@
       if (i >= fichiers.length) { envoyerTout(); return; }
       compresser(fichiers[i]).then(function (d) {
         return Photos.garder({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), quand: Date.now(), type: mode === 'facture' ? 'facture' : 'bl',
-          fournisseur: fournisseur, num: fichiers.length === 1 ? num : '', base64: d.base64, vignette: d.vignette, etat: 'attente' });
+          fournisseur: fournisseur, nomLibre: nomLibre || '', num: fichiers.length === 1 ? num : '', base64: d.base64, vignette: d.vignette, etat: 'attente' });
       }).then(function () { if (navigator.vibrate) navigator.vibrate(40); dessinerListe(); }, function (e) { toast(e.message, 4000); })
         .then(function () { suivant(i + 1); });
     })(0);

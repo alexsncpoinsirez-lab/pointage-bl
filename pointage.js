@@ -841,6 +841,7 @@
          puis elle « sort » de la liste avec un petit battement */
       function mettreEnAvant(cible) {
         var p = cible.closest('.pt-panneau');
+        if (p) p.classList.add('focus');
         if (p && p.scrollHeight > p.clientHeight + 4) {
           // la colonne défile toute seule : on la fait défiler elle, pas la page (la facture ne bouge pas)
           var haut = cible.getBoundingClientRect().top - p.getBoundingClientRect().top + p.scrollTop;
@@ -860,7 +861,7 @@
       /* ---------------- Panneau des BL ---------------- */
       function panneauBL(f) {
         var envoyee = f.Statut === 'ENVOYEE';
-        var p = el('section', { class: 'pt-panneau' });
+        var p = el('section', { class: 'pt-panneau' + (selBL && f.lignes.some(function (l) { return String(l.NumBL) === selBL; }) ? ' focus' : '') });
         p.appendChild(el('div', { class: 'liste-titre' }, ['BL de la facture']));
         if (!f.lignes.length) p.appendChild(el('div', { class: 'pt-bandeau-info' }, ['Aucun n° de BL lu sur cette facture : ajoute-les ci-dessous ou force la validation.']));
 
@@ -987,6 +988,8 @@
         selBL = num;
         majVoiles();
         Array.prototype.forEach.call(racine.querySelectorAll('.pt-bl'), function (x) { x.classList.toggle('selection', x.getAttribute('data-num') === num); });
+        var pan = racine.querySelector('.pt-panneau');
+        if (pan) pan.classList.add('focus');
         var b = blocs.filter(function (x) { return x.num === num; })[0];
         if (b) b.el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
